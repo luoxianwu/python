@@ -177,6 +177,28 @@ class CCSDS:
 
         return primary_header, secondary_header, data_field
 
+    def verify_crc(self, ccsds_package):
+        """
+        Verify the CRC32 of a given CCSDS package.
+
+        Args:
+            ccsds_package (bytes): The full CCSDS package to verify.
+
+        Returns:
+            bool: True if the CRC32 matches, False otherwise.
+        """
+        # Ensure the package is long enough to contain CRC32
+        if len(ccsds_package) < 6 + 10 + 4:
+            raise ValueError("The package is too short to contain a valid CRC32.")
+
+        # Extract the CRC32 from the package (last 4 bytes)
+        extracted_crc = int.from_bytes(ccsds_package[-4:], byteorder='big')
+
+        # Calculate CRC32 of the package excluding the last 4 bytes (the CRC itself)
+        calculated_crc = zlib.crc32(ccsds_package[:-4]) & 0xFFFFFFFF
+
+        # Compare and return the result
+        return extracted_crc == calculated_crc
 
     def show_fields(self):
         print("\n--- Primary Header ---")
@@ -216,6 +238,10 @@ if __name__ == "__main__":
     ccsds_instance = CCSDS(apid, segment_number, function_code, address_code, data)
     ccsds_instance.show_fields()
     ccsds_instance.print_hex()
+    # Verify CRC for the manually created packet
+    is_valid = ccsds_instance.verify_crc(ccsds_instance.packet)
+    print(f"\nCRC32 verification for manual packet: {'Passed' if is_valid else 'Failed'}")
+
 
     # Example usage with file input
     input_file = "ccsds_input.txt"
@@ -223,7 +249,9 @@ if __name__ == "__main__":
     print("\nPacket from file:")
     ccsds_from_file.show_fields()
     ccsds_from_file.print_hex()
-
+    # Verify CRC for the packet from the file
+    is_valid_file = ccsds_from_file.verify_crc(ccsds_from_file.packet)
+    print(f"\nCRC32 verification for file packet: {'Passed' if is_valid_file else 'Failed'}")
 
 r"""
 PS C:\Users\xianw\py1> python3 .\ccsds.py
@@ -238,7 +266,7 @@ Sequence Count:            0
 Packet Data Length:        26
 
 --- Secondary Header ---
-Time Code:                 43021509055976
+Time Code:                 43023421685677
 Segment Number:            1
 Function Code:             5
 Address Code:              0x1234
@@ -247,9 +275,11 @@ Address Code:              0x1234
 Data Length:               13
 Data (Hex):                48656c6c6f2c20434353445321
 Data (ASCII):              Hello, CCSDS!
-CRC32:                     0x7059d39
+CRC32:                     0xe420ffd5
 Full CCSDS Package (Hex):
-08 7B C0 00 00 1A B9 C3 D5 E8 27 20 01 05 12 34 48 65 6C 6C 6F 2C 20 43 43 53 44 53 21 07 05 9D 39
+08 7B C0 00 00 1A 2B C4 3F AD 27 21 01 05 12 34 48 65 6C 6C 6F 2C 20 43 43 53 44 53 21 E4 20 FF D5
+
+CRC32 verification for manual packet: Passed
 
 Packet from file:
 
@@ -263,7 +293,7 @@ Sequence Count:            1
 Packet Data Length:        16
 
 --- Secondary Header ---
-Time Code:                 43021509057480
+Time Code:                 43023421687181
 Segment Number:            1
 Function Code:             5
 Address Code:              0x1234
@@ -272,8 +302,9 @@ Address Code:              0x1234
 Data Length:               3
 Data (Hex):                5678ab
 Data (ASCII):              Vx�
-CRC32:                     0xca4abe04
+CRC32:                     0xf5bb7725
 Full CCSDS Package (Hex):
-08 7B C0 01 00 10 B9 C3 DB C8 27 20 01 05 12 34 56 78 AB CA 4A BE 04
-PS C:\Users\xianw\py1>
+08 7B C0 01 00 10 2B C4 45 8D 27 21 01 05 12 34 56 78 AB F5 BB 77 25
+
+CRC32 verification for file packet: Passed
 """

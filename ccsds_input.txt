@@ -1,0 +1,19 @@
+--- Primary Header ---
+Version Number:            0
+Packet Type:               TC               #TC: 1, TM: 0
+Secondary Header Flag:     1
+APID:                      123
+Sequence Flags:            3                #signal sequence
+Sequence Count:            0
+Packet Data Length:        ?                #auto fill with following byte
+
+--- Secondary Header ---
+Time Code:                 ?                #auto fill, use current utc
+Segment Number:            1
+Function Code:             5
+Address Code:              0x1234
+
+--- Data Field ---
+Data (Hex):                0x56, 0x78, 0xab
+crc32:                     ?                #auto fill, calculate full package crc32
+
