@@ -82,9 +82,7 @@ class CCSDS:
 
         # Append CRC32 to the packet
         return packet_without_crc + struct.pack('>I', self.crc32)
-
-    @staticmethod
-    def parse_text_file(file_path):
+    def parse_text_file(self, file_path):
         import zlib  # For CRC32 calculation
         import time  # For time generation
 
@@ -125,57 +123,59 @@ class CCSDS:
                 elif section == "--- Data Field ---":
                     data_field[key] = value
 
-        # Post-process to ensure values are converted correctly or auto-generated
+        # Update instance variables directly
         if "APID" in primary_header:
-            primary_header["APID"] = int(primary_header["APID"])
+            self.apid = int(primary_header["APID"])
         if "Segment Number" in secondary_header:
-            secondary_header["Segment Number"] = int(secondary_header["Segment Number"])
+            self.segment_number = int(secondary_header["Segment Number"])
         if "Function Code" in secondary_header:
-            secondary_header["Function Code"] = int(secondary_header["Function Code"])
+            self.function_code = int(secondary_header["Function Code"])
         if "Address Code" in secondary_header:
-            secondary_header["Address Code"] = int(secondary_header["Address Code"], 16)
+            self.address_code = int(secondary_header["Address Code"], 16)
         if "Data (Hex)" in data_field:
             data_hex = data_field["Data (Hex)"].replace("0x", "").replace(",", "").split()
-            data_field["Data (Hex)"] = bytes(int(byte, 16) for byte in data_hex)
+            self.data = bytes(int(byte, 16) for byte in data_hex)
         if "Time Code" in secondary_header:
             if secondary_header["Time Code"] == "?":
                 # Auto-generate Time Code as current UTC time in microseconds
-                secondary_header["Time Code"] = int(time.time() * 1e6)
+                self.time_code = int(time.time() * 1e6)
             else:
-                secondary_header["Time Code"] = int(secondary_header["Time Code"])
+                self.time_code = int(secondary_header["Time Code"])
+        else:
+            self.time_code = int(time.time() * 1e6)
         if "Packet Data Length" in primary_header:
             if primary_header["Packet Data Length"] == "?":
                 # Auto-calculate Packet Data Length: data length + secondary header size - 1
-                primary_header["Packet Data Length"] = len(data_field["Data (Hex)"]) + 10 - 1
+                self.packet_data_length = len(self.data) + 10 - 1
             else:
-                primary_header["Packet Data Length"] = int(primary_header["Packet Data Length"])
+                self.packet_data_length = int(primary_header["Packet Data Length"])
         if "CRC32" in data_field:
             if data_field["CRC32"] == "?":
                 # Auto-calculate CRC32
                 packet_body = (
                     struct.pack(
                         ">HHH",
-                        (0 << 13) | (0 << 12) | (1 << 11) | primary_header["APID"],
+                        (0 << 13) | (0 << 12) | (1 << 11) | self.apid,
                         (3 << 14) | (0),  # Default sequence flags and count
-                        primary_header["Packet Data Length"],
+                        self.packet_data_length,
                     )
                     + struct.pack(
                         ">IHBBH",
-                        secondary_header["Time Code"] & 0xFFFFFFFF,  # Lower 32 bits of time
-                        (secondary_header["Time Code"] >> 32) & 0xFFFF,  # Upper 16 bits
-                        secondary_header["Segment Number"],
-                        secondary_header["Function Code"],
-                        secondary_header["Address Code"],
+                        self.time_code & 0xFFFFFFFF,  # Lower 32 bits of time
+                        (self.time_code >> 32) & 0xFFFF,  # Upper 16 bits
+                        self.segment_number,
+                        self.function_code,
+                        self.address_code,
                     )
-                    + data_field["Data (Hex)"]
+                    + self.data
                 )
-                calculated_crc = zlib.crc32(packet_body) & 0xFFFFFFFF
-                data_field["CRC32"] = calculated_crc
+                self.crc32 = zlib.crc32(packet_body) & 0xFFFFFFFF
             else:
                 # Convert provided CRC32
-                data_field["CRC32"] = int(data_field["CRC32"], 16)
+                self.crc32 = int(data_field["CRC32"], 16)
 
-        return primary_header, secondary_header, data_field
+        # Update the packet after all fields are set
+        self.packet = self._pack()
 
     def verify_crc(self, ccsds_package):
         """
@@ -217,7 +217,6 @@ class CCSDS:
         print(f"Address Code:              {hex(self.address_code)}")
         
         print("\n--- Data Field ---")
-        print(f"Data Length:               {len(self.data)}")
         print(f"Data (Hex):                {self.data.hex()}")
         print(f"Data (ASCII):              {self.data.decode('ascii', errors='replace')}")
         print(f"CRC32:                     {hex(self.crc32)}")
@@ -227,31 +226,43 @@ class CCSDS:
         print(" ".join([f"{byte:02X}" for byte in self.packet]))
 
 
+import argparse
+
 if __name__ == "__main__":
-    # Example usage with manual input
-    apid = 123
-    segment_number = 1
-    function_code = 5
-    address_code = 0x1234
-    data = b"Hello, CCSDS!"
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(description="CCSDS Packet Generator and Verifier")
+    parser.add_argument("--file", type=str, help="Path to the input file for CCSDS packet generation")
+    args = parser.parse_args()
 
-    ccsds_instance = CCSDS(apid, segment_number, function_code, address_code, data)
-    ccsds_instance.show_fields()
-    ccsds_instance.print_hex()
-    # Verify CRC for the manually created packet
-    is_valid = ccsds_instance.verify_crc(ccsds_instance.packet)
-    print(f"\nCRC32 verification for manual packet: {'Passed' if is_valid else 'Failed'}")
+    if args.file:
 
+        
+        # Example usage with file input
+        input_file = args.file
+        print(f"\nProcessing file: {input_file}")
+        ccsds_from_file = CCSDS(0, 0, 0, 0, b"")  # Create an empty instance
+        ccsds_from_file.parse_text_file(input_file)  # Update fields from the file
+        print("\nPacket from file:")
+        ccsds_from_file.show_fields()
+        ccsds_from_file.print_hex()
+        # Verify CRC for the packet from the file
+        is_valid_file = ccsds_from_file.verify_crc(ccsds_from_file.packet)
+        print(f"\nCRC32 verification for file packet: {'Passed' if is_valid_file else 'Failed'}")
+    else:
+        # Example usage with manual input
+        apid = 123
+        segment_number = 1
+        function_code = 5
+        address_code = 0x1234
+        data = b"CCSDS!"
 
-    # Example usage with file input
-    input_file = "ccsds_input.txt"
-    ccsds_from_file = CCSDS.from_file(input_file)
-    print("\nPacket from file:")
-    ccsds_from_file.show_fields()
-    ccsds_from_file.print_hex()
-    # Verify CRC for the packet from the file
-    is_valid_file = ccsds_from_file.verify_crc(ccsds_from_file.packet)
-    print(f"\nCRC32 verification for file packet: {'Passed' if is_valid_file else 'Failed'}")
+        print("\nGenerating CCSDS packet with manual input:")
+        ccsds_instance = CCSDS(apid, segment_number, function_code, address_code, data)
+        ccsds_instance.show_fields()
+        ccsds_instance.print_hex()
+        # Verify CRC for the manually created packet
+        is_valid = ccsds_instance.verify_crc(ccsds_instance.packet)
+        print(f"\nCRC32 verification for manual packet: {'Passed' if is_valid else 'Failed'}")
 
 r"""
 PS C:\Users\xianw\py1> python3 .\ccsds.py
