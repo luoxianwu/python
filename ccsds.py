@@ -292,14 +292,25 @@ if __name__ == "__main__":
     ccsds.show_fields()
     ccsds.print_hex()   
 
-    with serial.Serial(port="COM5", baudrate=9600, timeout=5) as ser:
-        ser.write(ccsds.packet)  # Send a test string
-        response = ser.read(1024)  # Read response
-        # Convert the response to a space-separated hex string
+    with serial.Serial(port="COM8", baudrate=115200, timeout=0.1) as ser: #if did not receive char in 100ms, then break out
+        bytes_written = ser.write(ccsds.packet)  # Send a test string
+        #response = ser.read(1024)  # Read response
+
+        print(f"Send {bytes_written} bytes")
+
+        response = bytearray()
+        while True:
+            byte = ser.read(1)  # Read 1 byte at a time
+            if not byte:  # Timeout occurred (no data received within 1us)
+                break
+            response.extend(byte)
         hex_output = " ".join(f"{byte:02X}" for byte in response)
 
         print("Received Packet (Hex):")
         print(hex_output)
+
+
+
 
 r"""
 PS C:\Users\xianw\py2> python3 .\ccsds.py --file .\ccsds_input.txt
