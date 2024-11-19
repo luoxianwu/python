@@ -1,6 +1,8 @@
 import struct
 import time
 import zlib
+import argparse
+import serial  # Import serial for the standalone function
 
 
 class CCSDS:
@@ -82,6 +84,7 @@ class CCSDS:
 
         # Append CRC32 to the packet
         return packet_without_crc + struct.pack('>I', self.crc32)
+    
     def parse_text_file(self, file_path):
         import zlib  # For CRC32 calculation
         import time  # For time generation
@@ -225,47 +228,83 @@ class CCSDS:
         print("Full CCSDS Package (Hex):")
         print(" ".join([f"{byte:02X}" for byte in self.packet]))
 
+def send_packet(packet, port="COM5", baudrate=9600):
+    """
+    Send a CCSDS packet through a serial COM port.
 
-import argparse
+    Args:
+        packet (bytes): The CCSDS packet to send.
+        port (str): The COM port to use (e.g., "COM5").
+        baudrate (int): The baud rate for serial communication.
+
+    Returns:
+        None
+    """
+    try:
+        with serial.Serial(port, baudrate, timeout=5) as ser:
+            print(f"Sending packet to {port} at {baudrate} baud...")
+            ser.write(packet)
+            print("Packet sent successfully!")
+    except serial.SerialException as e:
+        print(f"Error in serial communication: {e}")
+
+
+def receive_packet(port="COM5", baudrate=9600, timeout=55):
+    """
+    Receive a CCSDS packet through a serial COM port.
+
+    Args:
+        port (str): The COM port to use (e.g., "COM5").
+        baudrate (int): The baud rate for serial communication.
+        timeout (int): The read timeout in seconds.
+
+    Returns:
+        bytes: The received response packet.
+    """
+    try:
+        with serial.Serial(port, baudrate, timeout=timeout) as ser:
+            print(f"Waiting for response on {port} at {baudrate} baud...")
+            response = ser.read(10)  # Adjust buffer size as needed
+            print(f"Response received: {len(response)} bytes")
+            return response
+    except serial.SerialException as e:
+        print(f"Error in serial communication: {e}")
+        return None
+
 
 if __name__ == "__main__":
+    # Example usage with manual input
+    apid = 123
+    segment_number = 1
+    function_code = 5
+    address_code = 0x1234
+    data = b"CCSDS!"
+    ccsds = CCSDS(apid, segment_number, function_code, address_code, data)
+
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description="CCSDS Packet Generator and Verifier")
     parser.add_argument("--file", type=str, help="Path to the input file for CCSDS packet generation")
     args = parser.parse_args()
-
     if args.file:
+        print(f"\nProcessing file: {args.file}")
+        ccsds.parse_text_file(args.file)
 
-        
-        # Example usage with file input
-        input_file = args.file
-        print(f"\nProcessing file: {input_file}")
-        ccsds_from_file = CCSDS(0, 0, 0, 0, b"")  # Create an empty instance
-        ccsds_from_file.parse_text_file(input_file)  # Update fields from the file
-        print("\nPacket from file:")
-        ccsds_from_file.show_fields()
-        ccsds_from_file.print_hex()
-        # Verify CRC for the packet from the file
-        is_valid_file = ccsds_from_file.verify_crc(ccsds_from_file.packet)
-        print(f"\nCRC32 verification for file packet: {'Passed' if is_valid_file else 'Failed'}")
-    else:
-        # Example usage with manual input
-        apid = 123
-        segment_number = 1
-        function_code = 5
-        address_code = 0x1234
-        data = b"CCSDS!"
+    ccsds.show_fields()
+    ccsds.print_hex()   
 
-        print("\nGenerating CCSDS packet with manual input:")
-        ccsds_instance = CCSDS(apid, segment_number, function_code, address_code, data)
-        ccsds_instance.show_fields()
-        ccsds_instance.print_hex()
-        # Verify CRC for the manually created packet
-        is_valid = ccsds_instance.verify_crc(ccsds_instance.packet)
-        print(f"\nCRC32 verification for manual packet: {'Passed' if is_valid else 'Failed'}")
+    with serial.Serial(port="COM5", baudrate=9600, timeout=5) as ser:
+        ser.write(ccsds.packet)  # Send a test string
+        response = ser.read(1024)  # Read response
+        # Convert the response to a space-separated hex string
+        hex_output = " ".join(f"{byte:02X}" for byte in response)
+
+        print("Received Packet (Hex):")
+        print(hex_output)
 
 r"""
-PS C:\Users\xianw\py1> python3 .\ccsds.py
+PS C:\Users\xianw\py2> python3 .\ccsds.py --file .\ccsds_input.txt
+
+Processing file: .\ccsds_input.txt
 
 --- Primary Header ---
 Version Number:            0
@@ -274,48 +313,20 @@ Secondary Header Flag:     Present
 APID:                      123
 Sequence Flags:            3
 Sequence Count:            0
-Packet Data Length:        26
+Packet Data Length:        12
 
 --- Secondary Header ---
-Time Code:                 43023421685677
+Time Code:                 1731988711556545
 Segment Number:            1
 Function Code:             5
 Address Code:              0x1234
 
 --- Data Field ---
-Data Length:               13
-Data (Hex):                48656c6c6f2c20434353445321
-Data (ASCII):              Hello, CCSDS!
-CRC32:                     0xe420ffd5
-Full CCSDS Package (Hex):
-08 7B C0 00 00 1A 2B C4 3F AD 27 21 01 05 12 34 48 65 6C 6C 6F 2C 20 43 43 53 44 53 21 E4 20 FF D5
-
-CRC32 verification for manual packet: Passed
-
-Packet from file:
-
---- Primary Header ---
-Version Number:            0
-Packet Type:               Telemetry
-Secondary Header Flag:     Present
-APID:                      123
-Sequence Flags:            3
-Sequence Count:            1
-Packet Data Length:        16
-
---- Secondary Header ---
-Time Code:                 43023421687181
-Segment Number:            1
-Function Code:             5
-Address Code:              0x1234
-
---- Data Field ---
-Data Length:               3
 Data (Hex):                5678ab
 Data (ASCII):              Vx�
-CRC32:                     0xf5bb7725
+CRC32:                     0xdae955ad
 Full CCSDS Package (Hex):
-08 7B C0 01 00 10 2B C4 45 8D 27 21 01 05 12 34 56 78 AB F5 BB 77 25
-
-CRC32 verification for file packet: Passed
+08 7B C0 00 00 0C 0B E8 45 C1 27 3C 01 05 12 34 56 78 AB DA E9 55 AD
+Received Packet (Hex):
+08 7B C0 00 00 0C 0B E8 45 C1 27 3C 01 05 12 34 56 78 AB DA E9 55 AD
 """
