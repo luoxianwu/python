@@ -1,9 +1,14 @@
-from ctypes import *
+from ctypes import BigEndianStructure, c_uint16, c_uint64, c_uint8, sizeof
+import zlib
+import re
+
+import time
+
 
 class CCSDS_Packet_Header(BigEndianStructure):
     _pack_ = 1
     _fields_ = [
-        #primary header
+        # Primary header
         ("version_number", c_uint16, 3),
         ("packet_type", c_uint16, 1),
         ("second_header_flag", c_uint16, 1),
@@ -11,91 +16,338 @@ class CCSDS_Packet_Header(BigEndianStructure):
         ("group_flag", c_uint16, 2),
         ("sequence_number", c_uint16, 14),
         ("data_length", c_uint16, 16),
-        #second header
+        # Secondary header
         ("timing_info", c_uint64, 48),
-        ("segment_number", c_uint64, 8),
-        ("function_code", c_uint64, 8),
-        ("address_code", c_uint16, 16),
-        # 256 uint8_t array
-        ("data", c_uint8 * 16)
+        ("segment_number", c_uint8, 8),
+        ("function_code", c_uint8, 8),
+        ("address_code", c_uint16, 16)
     ]
 
     def __str__(self):
         return (f"CCSDS_Packet_Header:\n"
-                f"  Version Number: {self.version_number}\n"
-                f"  Packet Type: {self.packet_type}\n"
-                f"  Second Header Flag: {self.second_header_flag}\n"
-                f"  Application ID: 0x{self.apid:04X}\n"
-                f"  Group Flag: {self.group_flag}\n"
-                f"  Sequence Number: {self.sequence_number}\n"
-                f"  Data Length: {self.data_length}\n"
-                f"  Timing Info: {self.timing_info}\n"
-                f"  Segment Number: {self.segment_number}\n"
-                f"  Function Code: 0x{self.function_code:02X}\n"
-                f"  Address Code: 0x{self.address_code:04X}")
-    
+                f"  Version Number:      {self.version_number}\n"
+                f"  Packet Type:         {self.packet_type}\n"
+                f"  Second Header Flag:  {self.second_header_flag}\n"
+                f"  Application ID:      0x{self.apid:04X}\n"
+                f"  Group Flag:          {self.group_flag}\n"
+                f"  Sequence Number:     {self.sequence_number}\n"
+                f"  Data Length:         {self.data_length}\n"
+                f"  Timing Info:         {self.timing_info}\n"
+                f"  Segment Number:      {self.segment_number}\n"
+                f"  Function Code:       {self.function_code:02X}\n"
+                f"  Address Code:        0x{self.address_code:04X}\n")
+
+
+class CCSDS_Packet:
+    def __init__(self, header: CCSDS_Packet_Header, data: bytes):
+        """
+        Initialize the CCSDS packet with a header and dynamic-length data.
+
+        Args:
+            header (CCSDS_Packet_Header): The fixed-length header.
+            data (bytes): The variable-length payload data.
+        """
+        self.header = header
+        self.data = data
+        self.crc32 = 0
+
+        # Update the header's data_length field
+        self.header.data_length = len(data)
+
+    def calculate_crc(self):
+        """
+        Calculate and update the CRC32 field, which includes the header and data.
+        """
+        # Pack the header into bytes
+        header_bytes = bytes(self.header)
+
+        # Combine header and data for CRC calculation
+        packet_body = header_bytes + self.data
+        self.crc32 = zlib.crc32(packet_body) & 0xFFFFFFFF
+
+    def to_bytes(self):
+        """
+        Convert the entire packet (header + data + CRC) to bytes.
+
+        Returns:
+            bytes: The serialized packet.
+        """
+        # Convert the header to bytes
+        header_bytes = bytes(self.header)
+
+        # Combine header, data, and CRC into a single byte array
+        crc_bytes = self.crc32.to_bytes(4, byteorder='big')
+        return header_bytes + self.data + crc_bytes
+
+    def __str__(self):
+        """
+        Return a human-readable representation of the CCSDS packet.
+        """
+        return (str(self.header) +
+                f"Data (Hex): \t{' '.join(f'{b:02X}' for b in self.data)}\n"
+                f"CRC32:      \t0x{self.crc32:08X}\n")
+
+    @staticmethod
+    def from_bytes(data: bytes):
+        """
+        Deserialize a chunk of bytes into a CCSDS packet and validate its CRC.
+
+        Args:
+            data (bytes): The received binary data.
+
+        Returns:
+            CCSDS_Packet: The deserialized packet object if valid.
+
+        Raises:
+            ValueError: If the data is invalid or the CRC does not match.
+        """
+        # Ensure the data is at least long enough for a header and CRC
+        if len(data) < sizeof(CCSDS_Packet_Header) + 4:
+            raise ValueError("Invalid packet: Data is too short.")
+
+        # Extract the header
+        header_bytes = data[:sizeof(CCSDS_Packet_Header)]
+        header = CCSDS_Packet_Header.from_buffer_copy(header_bytes)
+
+        # Extract the data and CRC
+        payload_length = header.data_length
+        payload_start = sizeof(CCSDS_Packet_Header)
+        payload_end = payload_start + payload_length
+
+        if payload_end + 4 > len(data):
+            raise ValueError("Invalid packet: Data length mismatch.")
+
+        payload = data[payload_start:payload_end]
+        received_crc = int.from_bytes(data[payload_end:payload_end + 4], byteorder='big')
+
+        # Recalculate CRC
+        recalculated_crc = zlib.crc32(header_bytes + payload) & 0xFFFFFFFF
+
+        # Verify CRC
+        if received_crc != recalculated_crc:
+            raise ValueError(f"Invalid CRC: Expected 0x{received_crc:08X}, got 0x{recalculated_crc:08X}.")
+
+        # Create and return the packet object
+        packet = CCSDS_Packet(header, payload)
+        packet.crc32 = received_crc  # Set the CRC field of the packet
+        return packet
+
+
+
+
+
+    @staticmethod
+    def from_file(file_path: str):
+        """
+        Create a CCSDS_Packet object from a text file.
+
+        Args:
+            file_path (str): Path to the text file containing the CCSDS packet details.
+
+        Returns:
+            CCSDS_Packet: The reconstructed packet.
+
+        Raises:
+            ValueError: If the text file is improperly formatted.
+        """
+        with open(file_path, "r") as file:
+            lines = file.readlines()
+
+        # Dictionary to hold parsed fields
+        file_dic = {}
+        data = None
+        crc = None
+
+        for line in lines:
+            line = line.strip()
+
+            # Skip comments and empty lines
+            if not line or line.startswith("#"):
+                continue
+            
+            # Remove inline comments
+            line = line.split("#", 1)[0].strip()
+
+            # Separate key and value by the first occurrence of ":"
+            if ":" in line:
+                key, value = line.split(":", 1)  # Split only on the first ":"
+                key = key.lower().replace(" ", "_")  # Normalize key
+                value = value.strip()  # Clean up whitespace around the value
+                file_dic[key] = value
+
+        # Handle dynamic values and conversions
+        if "packet_type" in file_dic:
+            if file_dic["packet_type"] == "TC":
+                file_dic["packet_type"] = 1
+            elif file_dic["packet_type"] == "TM":
+                file_dic["packet_type"] = 0
+            else:
+                raise ValueError("Invalid Packet Type: Must be 'TC' or 'TM'.")
+
+        if "timing_info" in file_dic and file_dic["timing_info"] == "?":
+            # Use current UTC time in microseconds
+            file_dic["timing_info"] = int(time.time() * 1e6)
+
+        if "dynamic_data_(hex)" in file_dic:
+            data = bytes.fromhex(file_dic["dynamic_data_(hex)"])
+        else:
+            raise ValueError("Missing Dynamic Data (Hex).")
+
+        if "crc32" in file_dic and file_dic["crc32"] == "?":
+            crc = None  # Will calculate later
+        elif "crc32" in file_dic:
+            crc = int(file_dic["crc32"], 16)
+
+        if "data_length" in file_dic and file_dic["data_length"] == "?":
+            # Include the length of the data and the CRC (4 bytes)
+            file_dic["data_length"] = len(data) + 4
+
+        # Ensure required fields are present
+        required_fields = [
+            "version_number", "packet_type", "second_header_flag",
+            "application_id", "group_flag", "sequence_number",
+            "data_length", "timing_info", "segment_number",
+            "function_code", "address_code"
+        ]
+        for field in required_fields:
+            if field not in file_dic:
+                raise ValueError(f"Missing required field: {field}")
+
+        # Construct the header
+        header = CCSDS_Packet_Header()
+        header.version_number = int(file_dic["version_number"])
+        header.packet_type = int(file_dic["packet_type"])
+        header.second_header_flag = int(file_dic["second_header_flag"])
+        header.apid = int(file_dic["application_id"], 16)
+        header.group_flag = int(file_dic["group_flag"])
+        header.sequence_number = int(file_dic["sequence_number"])
+        header.data_length = int(file_dic["data_length"])
+        header.timing_info = int(file_dic["timing_info"])
+        header.segment_number = int(file_dic["segment_number"])
+        header.function_code = int(file_dic["function_code"], 16)
+        header.address_code = int(file_dic["address_code"], 16)
+
+        # Create the packet
+        packet = CCSDS_Packet(header, data)
+
+        # Calculate CRC if needed
+        if crc is None:
+            packet.calculate_crc()
+        else:
+            packet.crc32 = crc
+
+        # Validate the calculated CRC against the file
+        if crc is not None and packet.crc32 != crc:
+            raise ValueError(f"Invalid CRC: Calculated 0x{packet.crc32:08X}, Expected 0x{crc:08X}.")
+
+        return packet
 
 
 if __name__ == "__main__":
-    # Create an instance of the structure
+    # Create a CCSDS packet header
     header = CCSDS_Packet_Header()
-
-    # Set some values
-    header.version_number = 0
+    header.version_number = 1
     header.packet_type = 0
-    header.second_header_flag = 0
-    header.app_id = 0xee
-    header.group_flag = 0
-    header.sequence_number = 0xcc
-    header.data_length = 0xff
+    header.second_header_flag = 1
+    header.apid = 0x7FF
+    header.group_flag = 3
+    header.sequence_number = 100
+    header.timing_info = 0x123456789ABC
+    header.segment_number = 1
+    header.function_code = 5
+    header.address_code = 0x1234
 
-    header.timing_info = 0xff
-    header.segment_number = 0x22
-    header.function_code = 0x12
-    header.address_code  = 0x23
+    # Create data payload
+    data = b"Hello!"
 
-    # Print the structure
-    print(header)
-    # Get the size in bytes
-    size_of_header = sizeof(CCSDS_Packet_Header)
+    # Create a CCSDS packet with the header and data
+    packet = CCSDS_Packet(header, data)
 
-    # Print the size
-    print(f"The size of CCSDS_Packet_Header is {size_of_header} bytes")
+    # Calculate CRC for the entire packet
+    packet.calculate_crc()
 
-    # Access the data_length field
-    print(f"Data Length: {header.data_length}")
+    # Display the packet
+    print(packet)
 
-    # Convert the structure to bytes and print
-    raw_bytes = bytes(header)
-    print("Raw bytes:")
-    print(raw_bytes.hex())
+    # Serialize to bytes
+    packet_bytes = packet.to_bytes()
+    print(f"Serialized Packet (Hex): {' '.join(f'{b:02X}' for b in packet_bytes)}")
 
-    # Optionally, print each byte individually
-    print("Individual bytes:")
-    for byte in raw_bytes:
-        print(f"{byte:02x}", end=" ")
-    print()
+    print("\n---- create CCSDS package from buffer ----")
+    try:
+        received_packet = CCSDS_Packet.from_bytes(packet_bytes)
+        received_packet.header.version_number = 0
+        print("Received Packet is valid:")
+        print(received_packet)
+
+        # Serialize to bytes
+        packet_bytes = received_packet.to_bytes()
+        print(f"Serialized Packet (Hex): {' '.join(f'{b:02X}' for b in packet_bytes)}")
+    except ValueError as e:
+        print("Error:", e)
+    
+    print("\n---- create CCSDS package from file ----")
+    try:
+        packet = CCSDS_Packet.from_file("y.sds")
+        print("Successfully loaded packet:")
+        print(packet)
+    except ValueError as e:
+        print("Error:", e)
 
 r"""
-PS C:\Users\x-luo\c_cpp\space\python> python .\ccsds_header.py
+PS C:\Users\xianw\py2> python3 ccsds_pkg.py
 CCSDS_Packet_Header:
-  Version Number: 0
-  Packet Type: 0
-  Second Header Flag: 0
-  Application ID: 0
-  Group Flag: 0
-  Sequence Number: 204
-  Data Length: 255
-  Timing Info: 0
-  Segment Number: 0
-  Function Code: 0
-  Address Code: 0
-The size of CCSDS_Packet_Header is 16 bytes
-Data Length: 255
-Raw bytes:
-000000cc00ff00000000000000000000
-Individual bytes:
-00 00 00 cc 00 ff 00 00 00 00 00 00 00 00 00 00
-PS C:\Users\x-luo\c_cpp\space\python>
+  Version Number:      1
+  Packet Type:         0
+  Second Header Flag:  1
+  Application ID:      0x07FF
+  Group Flag:          3
+  Sequence Number:     100
+  Data Length:         6
+  Timing Info:         20015998343868
+  Segment Number:      1
+  Function Code:       05
+  Address Code:        0x1234
+Data (Hex):     48 65 6C 6C 6F 21
+CRC32:          0x7EA4C02B
 
+Serialized Packet (Hex): 2F FF C0 64 00 06 12 34 56 78 9A BC 00 00 01 05 12 34 48 65 6C 6C 6F 21 7E A4 C0 2B
+
+---- create CCSDS package from buffer ----
+Received Packet is valid:
+CCSDS_Packet_Header:
+  Version Number:      0
+  Packet Type:         0
+  Second Header Flag:  1
+  Application ID:      0x07FF
+  Group Flag:          3
+  Sequence Number:     100
+  Data Length:         6
+  Timing Info:         20015998343868
+  Segment Number:      1
+  Function Code:       05
+  Address Code:        0x1234
+Data (Hex):     48 65 6C 6C 6F 21
+CRC32:          0x7EA4C02B
+
+Serialized Packet (Hex): 0F FF C0 64 00 06 12 34 56 78 9A BC 00 00 01 05 12 34 48 65 6C 6C 6F 21 7E A4 C0 2B
+
+---- create CCSDS package from file ----
+Successfully loaded packet:
+CCSDS_Packet_Header:
+  Version Number:      0
+  Packet Type:         1
+  Second Header Flag:  1
+  Application ID:      0x07FF
+  Group Flag:          3
+  Sequence Number:     100
+  Data Length:         6
+  Timing Info:         43285971460208
+  Segment Number:      1
+  Function Code:       05
+  Address Code:        0x1234
+Data (Hex):     48 65 6C 6C 6F 21
+CRC32:          0x142DFA9A
+
+PS C:\Users\xianw\py2>
 """
