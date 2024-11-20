@@ -3,9 +3,15 @@ import time
 import zlib
 import argparse
 import serial  # Import serial for the standalone function
-
+from ctypes import *
+from ccsds_pkg import *
 
 class CCSDS:
+
+    packet = CCSDS_Packet_Header()
+    data = b""
+    pkg_crc:c_int32 = 0
+
     sequence_counter = 0  # Class-level counter for sequence count
 
     def __init__(self, apid, segment_number, function_code, address_code, data):
@@ -15,27 +21,25 @@ class CCSDS:
             raise ValueError(f"Data size exceeds the maximum of {max_data_length} bytes")
 
         # Primary header fields
-        self.version = 0
-        self.type = 0
-        self.secondary_header_flag = 1
-        self.apid = apid & 0x7FF
-        self.sequence_flags = 3
-        self.sequence_count = CCSDS.sequence_counter
-        CCSDS.sequence_counter = (CCSDS.sequence_counter + 1) & 0x3FFF  # Increment safely
-        self.packet_data_length = len(data) + 14 - 1  # 10 bytes secondary header + 4 bytes CRC
+        self.packet.version_number = 0
+        self.packet.packet_type = 0
+        self.packet.second_header_flag = 1
+        self.packet.app_id = 0x55
+        self.packet.group_flag = 3   #single package
+        self.packet.sequence_number = 0xcc
+        self.packet.data_length = 10
 
         # Secondary header fields
-        self.time_code = int(time.time() * 1e6) & 0xFFFFFFFFFFFF  # 48-bit time
-        self.segment_number = segment_number & 0xFF
-        self.function_code = function_code & 0xFF
-        self.address_code = address_code & 0xFFFF
+        self.packet.timing_info = 0xff
+        self.packet.segment_number = 0x22
+        self.packet.function_code = 0x12
+        self.packet.address_code  = 0x23
 
         # Data field
-        self.data = data
+        for i, byte in enumerate(data):
+            self.packet.data[i] = byte
         self.crc32 = 0
 
-        # Construct the packet
-        self.packet = self._pack()
 
     @classmethod
     def from_file(cls, input_file):
@@ -54,6 +58,40 @@ class CCSDS:
         custom_crc = data_field.get("CRC32")
 
         return cls(apid, segment_number, function_code, address_code, data)
+    
+    @classmethod
+    def from_buffer(cls, buffer: bytearray) -> 'cls':
+        """Create an instance from a bytearray buffer.
+
+        Args:
+            buffer: Raw bytearray data to initialize the object
+
+        Returns:
+            New instance initialized from the buffer data
+
+        Raises:
+            ValueError: If buffer validation fails
+        """
+        # Validate buffer format/content
+        if not isinstance(buffer, bytearray):
+            raise TypeError("Buffer must be a bytearray")
+
+        # Validate buffer size
+        min_size = 20  # Example minimum size
+        if len(buffer) < min_size:
+            raise ValueError(f"Buffer too small, minimum {min_size} bytes required")
+
+        # Validate CCSDS format
+        if not CCSDS.is_valid(buffer):
+            raise ValueError("Invalid CCSDS buffer format")
+
+        # Create new instance
+        instance = cls( 0,0,0,0, b"")
+
+        # Copy buffer data into instance
+        instance.packet = bytearray(buffer)  # Make a copy
+
+        return instance
 
 
     def _pack(self):
@@ -202,31 +240,24 @@ class CCSDS:
 
         # Compare and return the result
         return extracted_crc == calculated_crc
+    
+    def is_valid(package):
+        return True
+
 
     def show_fields(self):
-        print("\n--- Primary Header ---")
-        print(f"Version Number:            {self.version}")
-        print(f"Packet Type:               {'Telemetry' if self.type == 0 else 'Command'}")
-        print(f"Secondary Header Flag:     {'Present' if self.secondary_header_flag else 'Absent'}")
-        print(f"APID:                      {self.apid}")
-        print(f"Sequence Flags:            {self.sequence_flags}")
-        print(f"Sequence Count:            {self.sequence_count}")
-        print(f"Packet Data Length:        {self.packet_data_length}")
-        
-        print("\n--- Secondary Header ---")
-        print(f"Time Code:                 {self.time_code}")
-        print(f"Segment Number:            {self.segment_number}")
-        print(f"Function Code:             {self.function_code}")
-        print(f"Address Code:              {hex(self.address_code)}")
-        
+
+        print(self.packet)
         print("\n--- Data Field ---")
-        print(f"Data (Hex):                {self.data.hex()}")
-        print(f"Data (ASCII):              {self.data.decode('ascii', errors='replace')}")
+        # Assuming self.packet.data contains the byte data
+        print(f"Data (Hex):\n{' '.join([f'{b:02X}' for b in self.packet.data[:16]])}")
+        print(f"Data (ASCII):              {bytes(self.packet.data).decode('ascii', errors='replace')}")
         print(f"CRC32:                     {hex(self.crc32)}")
 
+    
     def print_hex(self):
         print("Full CCSDS Package (Hex):")
-        print(" ".join([f"{byte:02X}" for byte in self.packet]))
+        print(" ".join([f"{byte:02X}" for byte in self.packet.data[:16]]))        
 
 def send_packet(packet, port="COM5", baudrate=9600):
     """
@@ -292,7 +323,7 @@ if __name__ == "__main__":
     ccsds.show_fields()
     ccsds.print_hex()   
 
-    with serial.Serial(port="COM8", baudrate=115200, timeout=0.1) as ser: #if did not receive char in 100ms, then break out
+    with serial.Serial(port="COM8", baudrate=115200, timeout=0.05) as ser: #if did not receive char in 100ms, then break out
         bytes_written = ser.write(ccsds.packet)  # Send a test string
         #response = ser.read(1024)  # Read response
 
@@ -309,35 +340,40 @@ if __name__ == "__main__":
         print("Received Packet (Hex):")
         print(hex_output)
 
+        ret_ccsds = CCSDS.from_buffer(response)
+        hex_output = " ".join(f"{byte:02X}" for byte in ret_ccsds.packet )
+        print("Received Packet (Hex):")
+        print(hex_output)
+
 
 
 
 r"""
-PS C:\Users\xianw\py2> python3 .\ccsds.py --file .\ccsds_input.txt
-
-Processing file: .\ccsds_input.txt
-
---- Primary Header ---
-Version Number:            0
-Packet Type:               Telemetry
-Secondary Header Flag:     Present
-APID:                      123
-Sequence Flags:            3
-Sequence Count:            0
-Packet Data Length:        12
-
---- Secondary Header ---
-Time Code:                 1731988711556545
-Segment Number:            1
-Function Code:             5
-Address Code:              0x1234
+PS C:\Users\x-luo\c_cpp\space\python> python ccsds.py
+CCSDS_Packet_Header:
+  Version Number: 0
+  Packet Type: 0
+  Second Header Flag: 1
+  Application ID: 0x0000
+  Group Flag: 3
+  Sequence Number: 204
+  Data Length: 10
+  Timing Info: 255
+  Segment Number: 34
+  Function Code: 0x12
+  Address Code: 0x0023
 
 --- Data Field ---
-Data (Hex):                5678ab
-Data (ASCII):              Vx�
-CRC32:                     0xdae955ad
+Data (Hex):
+43 43 53 44 53 21 00 00 00 00 00 00 00 00 00 00
+Data (ASCII):              CCSDS!
+CRC32:                     0x0
 Full CCSDS Package (Hex):
-08 7B C0 00 00 0C 0B E8 45 C1 27 3C 01 05 12 34 56 78 AB DA E9 55 AD
+43 43 53 44 53 21 00 00 00 00 00 00 00 00 00 00
+Send 32 bytes
 Received Packet (Hex):
-08 7B C0 00 00 0C 0B E8 45 C1 27 3C 01 05 12 34 56 78 AB DA E9 55 AD
+08 00 C0 CC 00 0A 00 00 00 00 00 FF 22 12 00 23 43 43 53 44 53 21 00 00 00 00 00 00 00 00 00 00
+Received Packet (Hex):
+08 00 C0 CC 00 0A 00 00 00 00 00 FF 22 12 00 23 43 43 53 44 53 21 00 00 00 00 00 00 00 00 00 00
+PS C:\Users\x-luo\c_cpp\space\python>
 """
