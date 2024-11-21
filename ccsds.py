@@ -50,3 +50,51 @@ if __name__ == "__main__":
         print(f"Serialized Packet (Hex): {' '.join(f'{b:02X}' for b in packet_bytes)}")  
 
 
+r"""
+PS C:\Users\x-luo\c_cpp\space\python> python3 ccsds.py COM8 y.sds
+Namespace(com_port='COM8', file='y.sds')
+<class 'argparse.Namespace'>
+Complete packet bytes:
+1F FF C0 64 14 00 00 00 00 00 00 00 01 05 12 34 48 65 6C 6C 6F 21
+Complete packet bytes:
+1F FF C0 64 14 00 00 00 00 00 00 00 01 05 12 34 48 65 6C 6C 6F 21
+CCSDS_Packet_Header(16) bytes:
+  Version Number:      0
+  Packet Type:         1
+  Second Header Flag:  1
+  Application ID:      0x07FF
+  Group Flag:          3
+  Sequence Number:     100
+  Data Length:         20
+  Timing Info:         <ccsds_pkg.c_ubyte_Array_6 object at 0x0000024112F454D0>
+  Segment Number:      1
+  Function Code:       05
+  Address Code:        0x1234
+Data (Hex):     48 65 6C 6C 6F 21
+CRC32:          0x99C683C0
+
+Serialized Packet (Hex): 1F FF C0 64 14 00 00 00 00 00 00 00 01 05 12 34 48 65 6C 6C 6F 21 99 C6 83 C0
+Send 26 bytes
+Received Packet (26):
+1F FF C0 64 14 00 00 00 00 00 00 00 01 05 12 34 48 65 6C 6C 6F 21 99 C6 83 C0
+16, 6
+1F FF C0 64 14 00 00 00 00 00 00 00 01 05 12 34 48 65 6C 6C 6F 21
+CCSDS_Packet_Header(16) bytes:
+  Version Number:      0
+  Packet Type:         1
+  Second Header Flag:  1
+  Application ID:      0x07FF
+  Group Flag:          3
+  Sequence Number:     100
+  Data Length:         20
+  Timing Info:         <ccsds_pkg.c_ubyte_Array_6 object at 0x0000024112F45750>
+  Segment Number:      1
+  Function Code:       05
+  Address Code:        0x1234
+Data (Hex):     48 65 6C 6C 6F 21
+CRC32:          0x99C683C0
+
+Serialized Packet (Hex): 1F FF C0 64 14 00 00 00 00 00 00 00 01 05 12 34 48 65 6C 6C 6F 21 99 C6 83 C0
+
+Serialized Packet (Hex): 1F FF C0 64 00 06 27 5F B2 FD 5F 0B 00 00 01 05 12 34 48 65 6C 6C 6F 21 FE ED 5D 6D
+"""

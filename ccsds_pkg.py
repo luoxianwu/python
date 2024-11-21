@@ -17,42 +17,64 @@ class CCSDS_Packet_Header(BigEndianStructure):
         ("sequence_number", c_uint16, 14),
         ("data_length", c_uint16, 16),
         # Secondary header
-        ("timing_info", c_uint64, 48),
-        ("segment_number", c_uint8, 8),
-        ("function_code", c_uint8, 8),
+        ("timing_info", c_uint8 * 6 ),
+        ("segment_number", c_uint16, 8),
+        ("function_code", c_uint16, 8),
         ("address_code", c_uint16, 16)
     ]
 
     def __str__(self):
-        return (f"CCSDS_Packet_Header:\n"
+        return (f"CCSDS_Packet_Header({sizeof(CCSDS_Packet_Header)}) bytes:\n"
                 f"  Version Number:      {self.version_number}\n"
                 f"  Packet Type:         {self.packet_type}\n"
                 f"  Second Header Flag:  {self.second_header_flag}\n"
                 f"  Application ID:      0x{self.apid:04X}\n"
                 f"  Group Flag:          {self.group_flag}\n"
                 f"  Sequence Number:     {self.sequence_number}\n"
-                f"  Data Length:         {self.data_length}\n"
+                f"  Data Length:         {self.get_data_length()}\n"
                 f"  Timing Info:         {self.timing_info}\n"
                 f"  Segment Number:      {self.segment_number}\n"
                 f"  Function Code:       {self.function_code:02X}\n"
                 f"  Address Code:        0x{self.address_code:04X}\n")
+    
+    def set_timing_info(self, value):
+        # Convert integer to 6 bytes in big-endian order
+        timing_bytes = value.to_bytes(6, byteorder='big')
+        for i in range(6):
+            self.timing_info[i] = timing_bytes[i]
 
+    def get_timing_info(self):
+        # Convert 6 bytes back to integer
+        return int.from_bytes(bytes(self.timing_info), byteorder='big')
+    
+    def get_data_length(self):
+        """
+        Get data length field converted to little-endian.
+        Returns the data length value in little-endian format.
+        """
+        return int.from_bytes(self.data_length.to_bytes(2, byteorder='big'), byteorder='little')
+    def set_data_length(self, length):
+        """
+        Set data length field, converting from little-endian to big-endian if needed.
+        Args:
+            length (int): The data length value to set
+        """
+        # Convert little-endian input to big-endian for storage
+        self.data_length = ((length & 0xFF) << 8) | ((length >> 8) & 0xFF)
 
 class CCSDS_Packet:
-    def __init__(self, header: CCSDS_Packet_Header, data: bytes):
+    def __init__(self, header: CCSDS_Packet_Header, data: bytes = None, crc: int = None):
         """
         Initialize the CCSDS packet with a header and dynamic-length data.
 
         Args:
             header (CCSDS_Packet_Header): The fixed-length header.
             data (bytes): The variable-length payload data.
+            crc (int, optional): CRC32 checksum value. If None, will be calculated.
         """
         self.header = header
-        self.data = data
-        self.crc32 = 0
-
-        # Update the header's data_length field
-        self.header.data_length = len(data)
+        self.data = data if data is not None else bytes()
+        self.crc32 = crc if crc is not None else self.calculate_crc()
 
     def calculate_crc(self):
         """
@@ -63,7 +85,10 @@ class CCSDS_Packet:
 
         # Combine header and data for CRC calculation
         packet_body = header_bytes + self.data
-        self.crc32 = zlib.crc32(packet_body) & 0xFFFFFFFF
+        print("Complete packet bytes:")
+        print(" ".join([f"{b:02X}" for b in packet_body]))
+    
+        return zlib.crc32(packet_body) & 0xFFFFFFFF
 
     def to_bytes(self):
         """
@@ -88,7 +113,7 @@ class CCSDS_Packet:
                 f"CRC32:      \t0x{self.crc32:08X}\n")
 
     @staticmethod
-    def from_bytes(data: bytes):
+    def from_bytes(buffer: bytes):
         """
         Deserialize a chunk of bytes into a CCSDS packet and validate its CRC.
 
@@ -102,34 +127,32 @@ class CCSDS_Packet:
             ValueError: If the data is invalid or the CRC does not match.
         """
         # Ensure the data is at least long enough for a header and CRC
-        if len(data) < sizeof(CCSDS_Packet_Header) + 4:
+        if len(buffer) < sizeof(CCSDS_Packet_Header) + 4 :
             raise ValueError("Invalid packet: Data is too short.")
-
+        if len(buffer) > 16 + 256 + 4:
+            raise ValueError("Invalid packet: Data is too long.")
+        
         # Extract the header
-        header_bytes = data[:sizeof(CCSDS_Packet_Header)]
+        header_bytes = buffer[:sizeof(CCSDS_Packet_Header)]
         header = CCSDS_Packet_Header.from_buffer_copy(header_bytes)
-
-        # Extract the data and CRC
-        payload_length = header.data_length
-        payload_start = sizeof(CCSDS_Packet_Header)
-        payload_end = payload_start + payload_length
-
-        if payload_end + 4 > len(data):
-            raise ValueError("Invalid packet: Data length mismatch.")
-
-        payload = data[payload_start:payload_end]
-        received_crc = int.from_bytes(data[payload_end:payload_end + 4], byteorder='big')
+        # Extract the data, 10 is sencond header , 4 is crc
+        data = buffer[sizeof(header):sizeof(header) + header.get_data_length() - 10 - 4]
+        # Extract CRC
+        received_crc = int.from_bytes(buffer[-4:], byteorder='big')
 
         # Recalculate CRC
-        recalculated_crc = zlib.crc32(header_bytes + payload) & 0xFFFFFFFF
+        print(f"{sizeof(header)}, {len(data)}")
+        ba = header_bytes + data
+        print(" ".join([f"{b:02X}" for b in ba]))
+        recalculated_crc = zlib.crc32(header_bytes + data) & 0xFFFFFFFF
 
         # Verify CRC
         if received_crc != recalculated_crc:
             raise ValueError(f"Invalid CRC: Expected 0x{received_crc:08X}, got 0x{recalculated_crc:08X}.")
 
         # Create and return the packet object
-        packet = CCSDS_Packet(header, payload)
-        packet.crc32 = received_crc  # Set the CRC field of the packet
+        packet = CCSDS_Packet(header, data, received_crc)
+        
         return packet
 
 
@@ -199,8 +222,8 @@ class CCSDS_Packet:
             crc = int(file_dic["crc32"], 16)
 
         if "data_length" in file_dic and file_dic["data_length"] == "?":
-            # Include the length of the data and the CRC (4 bytes)
-            file_dic["data_length"] = len(data) + 4
+            # Include length of secondary header + length of the data + the CRC (4 bytes)
+            file_dic["data_length"] = 10 + len(data) + 4
 
         # Ensure required fields are present
         required_fields = [
@@ -221,8 +244,8 @@ class CCSDS_Packet:
         header.apid = int(file_dic["application_id"], 16)
         header.group_flag = int(file_dic["group_flag"])
         header.sequence_number = int(file_dic["sequence_number"])
-        header.data_length = int(file_dic["data_length"])
-        header.timing_info = int(file_dic["timing_info"])
+        length = int(file_dic["data_length"])
+        header.set_data_length(length)
         header.segment_number = int(file_dic["segment_number"])
         header.function_code = int(file_dic["function_code"], 16)
         header.address_code = int(file_dic["address_code"], 16)
@@ -252,7 +275,7 @@ if __name__ == "__main__":
     header.apid = 0x7FF
     header.group_flag = 3
     header.sequence_number = 100
-    header.timing_info = 0x123456789ABC
+    header.set_timing_info(0x123456789ABC)
     header.segment_number = 1
     header.function_code = 5
     header.address_code = 0x1234
