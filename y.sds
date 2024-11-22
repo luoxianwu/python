@@ -5,8 +5,8 @@ CCSDS_Packet:
   Application ID:      0x07FF
   Group Flag:          3
   Sequence Number:     100
-  Data Length:         6
-  Timing Info:         ?
+  Data Length:         ?
+  Timing Info:         0
   Segment Number:      1
   Function Code:       05
   Address Code:        0x1234

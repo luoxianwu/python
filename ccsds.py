@@ -51,13 +51,13 @@ if __name__ == "__main__":
 
 
 r"""
-PS C:\Users\x-luo\c_cpp\space\python> python3 ccsds.py COM8 y.sds
-Namespace(com_port='COM8', file='y.sds')
+PS C:\Users\x-luo\c_cpp\space\python> python3 ccsds.py COM12 y.sds
+Namespace(com_port='COM12', file='y.sds')
 <class 'argparse.Namespace'>
 Complete packet bytes:
-1F FF C0 64 14 00 00 00 00 00 00 00 01 05 12 34 48 65 6C 6C 6F 21
+1F FF C0 64 00 14 00 00 00 00 00 00 01 05 12 34 48 65 6C 6C 6F 21
 Complete packet bytes:
-1F FF C0 64 14 00 00 00 00 00 00 00 01 05 12 34 48 65 6C 6C 6F 21
+1F FF C0 64 00 14 00 00 00 00 00 00 01 05 12 34 48 65 6C 6C 6F 21
 CCSDS_Packet_Header(16) bytes:
   Version Number:      0
   Packet Type:         1
@@ -66,19 +66,19 @@ CCSDS_Packet_Header(16) bytes:
   Group Flag:          3
   Sequence Number:     100
   Data Length:         20
-  Timing Info:         <ccsds_pkg.c_ubyte_Array_6 object at 0x0000024112F454D0>
+  Timing Info:         0
   Segment Number:      1
   Function Code:       05
   Address Code:        0x1234
 Data (Hex):     48 65 6C 6C 6F 21
-CRC32:          0x99C683C0
+CRC32:          0xD894B66C
 
-Serialized Packet (Hex): 1F FF C0 64 14 00 00 00 00 00 00 00 01 05 12 34 48 65 6C 6C 6F 21 99 C6 83 C0
+Serialized Packet (Hex): 1F FF C0 64 00 14 00 00 00 00 00 00 01 05 12 34 48 65 6C 6C 6F 21 D8 94 B6 6C
 Send 26 bytes
 Received Packet (26):
-1F FF C0 64 14 00 00 00 00 00 00 00 01 05 12 34 48 65 6C 6C 6F 21 99 C6 83 C0
+1F FF C0 64 00 14 00 00 00 00 00 00 01 05 12 34 48 65 6C 6C 6F 21 D8 94 B6 6C
 16, 6
-1F FF C0 64 14 00 00 00 00 00 00 00 01 05 12 34 48 65 6C 6C 6F 21
+1F FF C0 64 00 14 00 00 00 00 00 00 01 05 12 34 48 65 6C 6C 6F 21
 CCSDS_Packet_Header(16) bytes:
   Version Number:      0
   Packet Type:         1
@@ -87,14 +87,12 @@ CCSDS_Packet_Header(16) bytes:
   Group Flag:          3
   Sequence Number:     100
   Data Length:         20
-  Timing Info:         <ccsds_pkg.c_ubyte_Array_6 object at 0x0000024112F45750>
+  Timing Info:         0
   Segment Number:      1
   Function Code:       05
   Address Code:        0x1234
 Data (Hex):     48 65 6C 6C 6F 21
-CRC32:          0x99C683C0
+CRC32:          0xD894B66C
 
-Serialized Packet (Hex): 1F FF C0 64 14 00 00 00 00 00 00 00 01 05 12 34 48 65 6C 6C 6F 21 99 C6 83 C0
-
-Serialized Packet (Hex): 1F FF C0 64 00 06 27 5F B2 FD 5F 0B 00 00 01 05 12 34 48 65 6C 6C 6F 21 FE ED 5D 6D
+Serialized Packet (Hex): 1F FF C0 64 00 14 00 00 00 00 00 00 01 05 12 34 48 65 6C 6C 6F 21 D8 94 B6 6C
 """

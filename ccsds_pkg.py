@@ -32,27 +32,29 @@ class CCSDS_Packet_Header(BigEndianStructure):
                 f"  Group Flag:          {self.group_flag}\n"
                 f"  Sequence Number:     {self.sequence_number}\n"
                 f"  Data Length:         {self.get_data_length()}\n"
-                f"  Timing Info:         {self.timing_info}\n"
+                f"  Timing Info:         {self.get_timing_info()}\n"
                 f"  Segment Number:      {self.segment_number}\n"
                 f"  Function Code:       {self.function_code:02X}\n"
                 f"  Address Code:        0x{self.address_code:04X}\n")
     
     def set_timing_info(self, value):
         # Convert integer to 6 bytes in big-endian order
-        timing_bytes = value.to_bytes(6, byteorder='big')
+        timing_bytes = value.to_bytes(6, byteorder='little')
         for i in range(6):
             self.timing_info[i] = timing_bytes[i]
 
     def get_timing_info(self):
         # Convert 6 bytes back to integer
-        return int.from_bytes(bytes(self.timing_info), byteorder='big')
+        return int.from_bytes(bytes(self.timing_info), byteorder='little')
     
     def get_data_length(self):
         """
         Get data length field converted to little-endian.
         Returns the data length value in little-endian format.
         """
-        return int.from_bytes(self.data_length.to_bytes(2, byteorder='big'), byteorder='little')
+        #return int.from_bytes(self.data_length.to_bytes(2, byteorder='big'), byteorder='little')
+        return self.data_length
+    
     def set_data_length(self, length):
         """
         Set data length field, converting from little-endian to big-endian if needed.
@@ -60,7 +62,8 @@ class CCSDS_Packet_Header(BigEndianStructure):
             length (int): The data length value to set
         """
         # Convert little-endian input to big-endian for storage
-        self.data_length = ((length & 0xFF) << 8) | ((length >> 8) & 0xFF)
+        #self.data_length = ((length & 0xFF) << 8) | ((length >> 8) & 0xFF)
+        self.data_length = length
 
 class CCSDS_Packet:
     def __init__(self, header: CCSDS_Packet_Header, data: bytes = None, crc: int = None):
@@ -246,6 +249,8 @@ class CCSDS_Packet:
         header.sequence_number = int(file_dic["sequence_number"])
         length = int(file_dic["data_length"])
         header.set_data_length(length)
+        time = int(file_dic["timing_info"])
+        header.set_timing_info(time)
         header.segment_number = int(file_dic["segment_number"])
         header.function_code = int(file_dic["function_code"], 16)
         header.address_code = int(file_dic["address_code"], 16)
@@ -275,7 +280,7 @@ if __name__ == "__main__":
     header.apid = 0x7FF
     header.group_flag = 3
     header.sequence_number = 100
-    header.set_timing_info(0x123456789ABC)
+    header.set_timing_info(0xabcd)
     header.segment_number = 1
     header.function_code = 5
     header.address_code = 0x1234
