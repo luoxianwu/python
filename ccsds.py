@@ -11,6 +11,7 @@ def parse_arguments():
     parser.add_argument("file", help="Specify CCSDS packet file")
     return parser.parse_args()
 
+
 if __name__ == "__main__":
 
     args = parse_arguments()

@@ -1,11 +1,11 @@
-from ctypes import BigEndianStructure, c_uint16, c_uint64, c_uint8, sizeof
+from ctypes import *
 import zlib
 import re
 
 import time
 
 
-class CCSDS_Packet_Header(BigEndianStructure):
+class CCSDS_Packet_Header(LittleEndianStructure):
     _pack_ = 1
     _fields_ = [
         # Primary header
@@ -63,7 +63,11 @@ class CCSDS_Packet_Header(BigEndianStructure):
         """
         # Convert little-endian input to big-endian for storage
         #self.data_length = ((length & 0xFF) << 8) | ((length >> 8) & 0xFF)
+        self.data_length = 0x12
+        byte_a = bytes(self)
         self.data_length = length
+        byte_a = bytes(self)
+
 
 class CCSDS_Packet:
     def __init__(self, header: CCSDS_Packet_Header, data: bytes = None, crc: int = None):
@@ -225,8 +229,8 @@ class CCSDS_Packet:
             crc = int(file_dic["crc32"], 16)
 
         if "data_length" in file_dic and file_dic["data_length"] == "?":
-            # Include length of secondary header + length of the data + the CRC (4 bytes)
-            file_dic["data_length"] = 10 + len(data) + 4
+            # Include length of secondary header + length of the data + the CRC (4 bytes), - 1 by define
+            file_dic["data_length"] = 10 + len(data) + 4 - 1
 
         # Ensure required fields are present
         required_fields = [
