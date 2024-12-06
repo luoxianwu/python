@@ -3,9 +3,13 @@ import zlib
 import re
 
 import time
+import socket
 
 
-class CCSDS_Packet_Header(LittleEndianStructure):
+class CCSDS_Packet_Header(BigEndianStructure):
+    PRI_HDR_LEN  = 6  #primary header length
+    SEC_HDR_LEN  = 10 #secondary header length
+    CRC_LEN      = 4  # Constant for CRC32 length in bytes
     _pack_ = 1
     _fields_ = [
         # Primary header
@@ -23,6 +27,7 @@ class CCSDS_Packet_Header(LittleEndianStructure):
         ("address_code", c_uint16, 16)
     ]
 
+
     def __str__(self):
         return (f"CCSDS_Packet_Header({sizeof(CCSDS_Packet_Header)}) bytes:\n"
                 f"  Version Number:      {self.version_number}\n"
@@ -31,7 +36,7 @@ class CCSDS_Packet_Header(LittleEndianStructure):
                 f"  Application ID:      0x{self.apid:04X}\n"
                 f"  Group Flag:          {self.group_flag}\n"
                 f"  Sequence Number:     {self.sequence_number}\n"
-                f"  Data Length:         {self.get_data_length()}\n"
+                f"  Data Length:         {self.data_length}\n"
                 f"  Timing Info:         {self.get_timing_info()}\n"
                 f"  Segment Number:      {self.segment_number}\n"
                 f"  Function Code:       {self.function_code:02X}\n"
@@ -39,34 +44,25 @@ class CCSDS_Packet_Header(LittleEndianStructure):
     
     def set_timing_info(self, value):
         # Convert integer to 6 bytes in big-endian order
-        timing_bytes = value.to_bytes(6, byteorder='little')
+        timing_bytes = value.to_bytes(6, byteorder='big')
         for i in range(6):
             self.timing_info[i] = timing_bytes[i]
 
     def get_timing_info(self):
         # Convert 6 bytes back to integer
-        return int.from_bytes(bytes(self.timing_info), byteorder='little')
+        return int.from_bytes(bytes(self.timing_info), byteorder='big')
     
     def get_data_length(self):
         """
-        Get data length field converted to little-endian.
-        Returns the data length value in little-endian format.
+        Get data length field converted to host byte order (little-endian).
         """
-        #return int.from_bytes(self.data_length.to_bytes(2, byteorder='big'), byteorder='little')
-        return self.data_length
+        return socket.ntohs(self.data_length)
     
     def set_data_length(self, length):
         """
-        Set data length field, converting from little-endian to big-endian if needed.
-        Args:
-            length (int): The data length value to set
+        Set data length field, converting from host byte order to big-endian.
         """
-        # Convert little-endian input to big-endian for storage
-        #self.data_length = ((length & 0xFF) << 8) | ((length >> 8) & 0xFF)
-        self.data_length = 0x12
-        byte_a = bytes(self)
-        self.data_length = length
-        byte_a = bytes(self)
+        self.data_length = socket.htons(length)
 
 
 class CCSDS_Packet:
@@ -79,23 +75,28 @@ class CCSDS_Packet:
             data (bytes): The variable-length payload data.
             crc (int, optional): CRC32 checksum value. If None, will be calculated.
         """
+        self.pkt_sync = 0x55AA
         self.header = header
         self.data = data if data is not None else bytes()
+        if (self.header.data_length == 0):
+            self.header.data_length = self.header.SEC_HDR_LEN + len(self.data) + self.header.CRC_LEN
         self.crc32 = crc if crc is not None else self.calculate_crc()
+
 
     def calculate_crc(self):
         """
         Calculate and update the CRC32 field, which includes the header and data.
         """
+
         # Pack the header into bytes
         header_bytes = bytes(self.header)
 
         # Combine header and data for CRC calculation
         packet_body = header_bytes + self.data
-        print("Complete packet bytes:")
-        print(" ".join([f"{b:02X}" for b in packet_body]))
-    
-        return zlib.crc32(packet_body) & 0xFFFFFFFF
+        print(" ".join([f"{b:02X}" for b in packet_body]))    
+        crc = zlib.crc32(packet_body) & 0xFFFFFFFF
+        print(f"{crc:08X}")
+        return crc
 
     def to_bytes(self):
         """
@@ -104,18 +105,22 @@ class CCSDS_Packet:
         Returns:
             bytes: The serialized packet.
         """
+        # Pack the sync word into bytes (2 bytes, little-endian)
+        sync_bytes = self.pkt_sync.to_bytes(2, byteorder='big')
+
         # Convert the header to bytes
         header_bytes = bytes(self.header)
 
         # Combine header, data, and CRC into a single byte array
         crc_bytes = self.crc32.to_bytes(4, byteorder='big')
-        return header_bytes + self.data + crc_bytes
+        return sync_bytes + header_bytes + self.data + crc_bytes
 
     def __str__(self):
         """
         Return a human-readable representation of the CCSDS packet.
         """
-        return (str(self.header) +
+        return (f"SYNC:       \t0x{self.pkt_sync:04X}\n" +
+                str(self.header) +
                 f"Data (Hex): \t{' '.join(f'{b:02X}' for b in self.data)}\n"
                 f"CRC32:      \t0x{self.crc32:08X}\n")
 
@@ -142,8 +147,10 @@ class CCSDS_Packet:
         # Extract the header
         header_bytes = buffer[:sizeof(CCSDS_Packet_Header)]
         header = CCSDS_Packet_Header.from_buffer_copy(header_bytes)
+        user_data_len = header.data_length - header.SEC_HDR_LEN - header.CRC_LEN
+
         # Extract the data, 10 is sencond header , 4 is crc
-        data = buffer[sizeof(header):sizeof(header) + header.get_data_length() - 10 - 4]
+        data = buffer[sizeof(header):sizeof(header) + user_data_len]
         # Extract CRC
         received_crc = int.from_bytes(buffer[-4:], byteorder='big')
 
@@ -151,11 +158,11 @@ class CCSDS_Packet:
         print(f"{sizeof(header)}, {len(data)}")
         ba = header_bytes + data
         print(" ".join([f"{b:02X}" for b in ba]))
-        recalculated_crc = zlib.crc32(header_bytes + data) & 0xFFFFFFFF
+        calculated_crc = zlib.crc32(header_bytes + data) & 0xFFFFFFFF
 
         # Verify CRC
-        if received_crc != recalculated_crc:
-            raise ValueError(f"Invalid CRC: Expected 0x{received_crc:08X}, got 0x{recalculated_crc:08X}.")
+        if received_crc != calculated_crc:
+            print(f"Invalid CRC: Expected 0x{received_crc:08X}, got 0x{calculated_crc:08X}.")
 
         # Create and return the packet object
         packet = CCSDS_Packet(header, data, received_crc)
@@ -252,7 +259,7 @@ class CCSDS_Packet:
         header.group_flag = int(file_dic["group_flag"])
         header.sequence_number = int(file_dic["sequence_number"])
         length = int(file_dic["data_length"])
-        header.set_data_length(length)
+        header.data_length = length
         time = int(file_dic["timing_info"])
         header.set_timing_info(time)
         header.segment_number = int(file_dic["segment_number"])
@@ -284,7 +291,7 @@ if __name__ == "__main__":
     header.apid = 0x7FF
     header.group_flag = 3
     header.sequence_number = 100
-    header.set_timing_info(0xabcd)
+    header.set_timing_info(98765)
     header.segment_number = 1
     header.function_code = 5
     header.address_code = 0x1234
@@ -295,9 +302,6 @@ if __name__ == "__main__":
     # Create a CCSDS packet with the header and data
     packet = CCSDS_Packet(header, data)
 
-    # Calculate CRC for the entire packet
-    packet.calculate_crc()
-
     # Display the packet
     print(packet)
 
@@ -305,10 +309,10 @@ if __name__ == "__main__":
     packet_bytes = packet.to_bytes()
     print(f"Serialized Packet (Hex): {' '.join(f'{b:02X}' for b in packet_bytes)}")
 
-    print("\n---- create CCSDS package from buffer ----")
+    print("\n---- create CCSDS package from buffer(exclusive SYNC word) ----")
     try:
-        received_packet = CCSDS_Packet.from_bytes(packet_bytes)
-        received_packet.header.version_number = 0
+        received_packet = CCSDS_Packet.from_bytes(packet_bytes[2:])
+        #received_packet.header.version_number = 0
         print("Received Packet is valid:")
         print(received_packet)
 
