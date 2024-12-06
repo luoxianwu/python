@@ -331,59 +331,70 @@ if __name__ == "__main__":
         print("Error:", e)
 
 r"""
-PS C:\Users\xianw\py2> python3 ccsds_pkg.py
-CCSDS_Packet_Header:
+PS C:\Users\x-luo\python> python ccsds_pkg.py
+2F FF C0 64 00 14 00 00 00 01 81 CD 01 05 12 34 48 65 6C 6C 6F 21
+B535F593
+SYNC:           0x55AA
+CCSDS_Packet_Header(16) bytes:
   Version Number:      1
   Packet Type:         0
   Second Header Flag:  1
   Application ID:      0x07FF
   Group Flag:          3
   Sequence Number:     100
-  Data Length:         6
-  Timing Info:         20015998343868
+  Data Length:         20
+  Timing Info:         98765
   Segment Number:      1
   Function Code:       05
   Address Code:        0x1234
 Data (Hex):     48 65 6C 6C 6F 21
-CRC32:          0x7EA4C02B
+CRC32:          0xB535F593
 
-Serialized Packet (Hex): 2F FF C0 64 00 06 12 34 56 78 9A BC 00 00 01 05 12 34 48 65 6C 6C 6F 21 7E A4 C0 2B
+Serialized Packet (Hex): 55 AA 2F FF C0 64 00 14 00 00 00 01 81 CD 01 05 12 34 48 65 6C 6C 6F 21 B5 35 F5 93
 
----- create CCSDS package from buffer ----
+---- create CCSDS package from buffer(exclusive SYNC word) ----
+16, 6
+2F FF C0 64 00 14 00 00 00 01 81 CD 01 05 12 34 48 65 6C 6C 6F 21
 Received Packet is valid:
-CCSDS_Packet_Header:
-  Version Number:      0
+SYNC:           0x55AA
+CCSDS_Packet_Header(16) bytes:
+  Version Number:      1
   Packet Type:         0
   Second Header Flag:  1
   Application ID:      0x07FF
   Group Flag:          3
   Sequence Number:     100
-  Data Length:         6
-  Timing Info:         20015998343868
+  Data Length:         20
+  Timing Info:         98765
   Segment Number:      1
   Function Code:       05
   Address Code:        0x1234
 Data (Hex):     48 65 6C 6C 6F 21
-CRC32:          0x7EA4C02B
+CRC32:          0xB535F593
 
-Serialized Packet (Hex): 0F FF C0 64 00 06 12 34 56 78 9A BC 00 00 01 05 12 34 48 65 6C 6C 6F 21 7E A4 C0 2B
+Serialized Packet (Hex): 55 AA 2F FF C0 64 00 14 00 00 00 01 81 CD 01 05 12 34 48 65 6C 6C 6F 21 B5 35 F5 93
 
 ---- create CCSDS package from file ----
+19 23 C0 64 00 13 00 00 00 00 00 00 01 01 00 01 48 65 6C 6C 6F 21
+A963B27B
+19 23 C0 64 00 13 00 00 00 00 00 00 01 01 00 01 48 65 6C 6C 6F 21
+A963B27B
 Successfully loaded packet:
-CCSDS_Packet_Header:
+SYNC:           0x55AA
+CCSDS_Packet_Header(16) bytes:
   Version Number:      0
   Packet Type:         1
   Second Header Flag:  1
-  Application ID:      0x07FF
+  Application ID:      0x0123
   Group Flag:          3
   Sequence Number:     100
-  Data Length:         6
-  Timing Info:         43285971460208
+  Data Length:         19
+  Timing Info:         0
   Segment Number:      1
-  Function Code:       05
-  Address Code:        0x1234
+  Function Code:       01
+  Address Code:        0x0001
 Data (Hex):     48 65 6C 6C 6F 21
-CRC32:          0x142DFA9A
+CRC32:          0xA963B27B
 
-PS C:\Users\xianw\py2>
+PS C:\Users\x-luo\python>
 """
