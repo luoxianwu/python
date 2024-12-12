@@ -147,23 +147,25 @@ class CCSDS_Packet:
         # Extract the header
         header_bytes = buffer[:sizeof(CCSDS_Packet_Header)]
         header = CCSDS_Packet_Header.from_buffer_copy(header_bytes)
-        user_data_len = header.data_length - header.SEC_HDR_LEN - header.CRC_LEN
+        user_data_len = header.data_length - header.SEC_HDR_LEN - header.CRC_LEN + 1
 
-        # Extract the data, 10 is sencond header , 4 is crc
         data = buffer[sizeof(header):sizeof(header) + user_data_len]
         # Extract CRC
         received_crc = int.from_bytes(buffer[-4:], byteorder='big')
 
-        # Recalculate CRC
         print(f"{sizeof(header)}, {len(data)}")
         ba = header_bytes + data
         print(" ".join([f"{b:02X}" for b in ba]))
-        calculated_crc = zlib.crc32(header_bytes + data) & 0xFFFFFFFF
 
+        # Recalculate CRC ( exclude SYNC word and CRC32 )
+        crc_cal_data = buffer[ :-4 ]
+        calculated_crc = zlib.crc32(crc_cal_data) & 0xFFFFFFFF
         # Verify CRC
         if received_crc != calculated_crc:
-            print(f"Invalid CRC: Expected 0x{received_crc:08X}, got 0x{calculated_crc:08X}.")
-
+            print(f"Invalid CRC: ExpectedReceived CRC 0x{received_crc:08X}, Calculated CRC 0x{calculated_crc:08X}.")
+        else:
+             print(f"Valid CRC : 0x{received_crc:08X}")
+                   
         # Create and return the packet object
         packet = CCSDS_Packet(header, data, received_crc)
         

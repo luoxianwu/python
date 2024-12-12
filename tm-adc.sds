@@ -1,0 +1,14 @@
+CCSDS_Packet:
+  Version Number:      0
+  Packet Type:         TM  #TC:1, TM:0
+  Second Header Flag:  1
+  Application ID:      0x0123
+  Group Flag:          3
+  Sequence Number:     100
+  Data Length:         ?
+  Timing Info:         0
+  Segment Number:      1
+  Function Code:       0x10
+  Address Code:        0x1
+  Dynamic Data (Hex):  48 65 6C 6C 6F 21
+  CRC32:               ?
