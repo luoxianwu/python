@@ -3,6 +3,8 @@ import time
 import argparse
 import serial  # Import serial for the standalone function
 from ccsds_pkg import *
+from tm import *
+import struct
 
 
 def parse_arguments():
@@ -26,7 +28,7 @@ if __name__ == "__main__":
     print(f"Serialized Packet (Hex): {' '.join(f'{b:02X}' for b in packet_bytes)}")  
 
     # PC is not real time, need adjust timeout value in practice
-    with serial.Serial(port=args.com_port, baudrate=115200, timeout=5) as ser: #if did not receive char in 100ms, then break out
+    with serial.Serial(port=args.com_port, baudrate=115200, timeout=1) as ser: #if did not receive char in 100ms, then break out
         bytes_written = ser.write(packet_bytes)  # Send a test string
         #response = ser.read(1024)  # Read response
 
@@ -48,7 +50,9 @@ if __name__ == "__main__":
         print(ret_ccsds)
         # Serialize to bytes
         packet_bytes = ret_ccsds.to_bytes()
-        print(f"Serialized Packet (Hex): {' '.join(f'{b:02X}' for b in packet_bytes)}")  
+        print(f"Serialized Packet (Hex): {' '.join(f'{b:02X}' for b in packet_bytes)}") 
+
+        Telemetery.parse(ret_ccsds)
 
 
 r"""
