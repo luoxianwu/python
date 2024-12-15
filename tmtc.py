@@ -56,8 +56,8 @@ if __name__ == "__main__":
 
 
 r"""
-PS C:\Users\x-luo\python> python ccsds.py COM18 .\tm-adc.sds
-Namespace(com_port='COM18', file='.\\tm-adc.sds')
+PS C:\Users\x-luo\python> python tmtc.py COM20 .\tm-adc.sds
+Namespace(com_port='COM20', file='.\\tm-adc.sds')
 <class 'argparse.Namespace'>
 09 23 C0 64 00 13 00 00 00 00 00 00 01 10 00 01 48 65 6C 6C 6F 21
 BB2FAE08
@@ -82,10 +82,10 @@ CRC32:          0xBB2FAE08
 Serialized Packet (Hex): 55 AA 09 23 C0 64 00 13 00 00 00 00 00 00 01 10 00 01 48 65 6C 6C 6F 21 BB 2F AE 08
 Send 28 bytes
 Received Packet (38):
-55 AA 09 23 C0 01 00 1D 00 00 00 00 00 00 00 00 00 00 00 00 02 FE 03 63 03 71 03 A0 03 BE 0A 31 08 02 F9 CB C4 06
+55 AA 09 23 C0 01 00 1D 00 00 00 00 00 00 00 00 00 00 05 60 03 F0 03 EE 03 7F 04 0F 03 E3 0A 16 07 F8 4E A5 E4 73
 16, 16
-09 23 C0 01 00 1D 00 00 00 00 00 00 00 00 00 00 00 00 02 FE 03 63 03 71 03 A0 03 BE 0A 31 08 02
-Valid CRC : 0xF9CBC406
+09 23 C0 01 00 1D 00 00 00 00 00 00 00 00 00 00 05 60 03 F0 03 EE 03 7F 04 0F 03 E3 0A 16 07 F8
+Valid CRC : 0x4EA5E473
 SYNC:           0x55AA
 CCSDS_Packet_Header(16) bytes:
   Version Number:      0
@@ -99,9 +99,16 @@ CCSDS_Packet_Header(16) bytes:
   Segment Number:      0
   Function Code:       00
   Address Code:        0x0000
-Data (Hex):     00 00 02 FE 03 63 03 71 03 A0 03 BE 0A 31 08 02
-CRC32:          0xF9CBC406
+Data (Hex):     05 60 03 F0 03 EE 03 7F 04 0F 03 E3 0A 16 07 F8
+CRC32:          0x4EA5E473
 
-Serialized Packet (Hex): 55 AA 09 23 C0 01 00 1D 00 00 00 00 00 00 00 00 00 00 00 00 02 FE 03 63 03 71 03 A0 03 BE 0A 31 08 02 F9 CB C4 06
-PS C:\Users\x-luo\python>
+Serialized Packet (Hex): 55 AA 09 23 C0 01 00 1D 00 00 00 00 00 00 00 00 00 00 05 60 03 F0 03 EE 03 7F 04 0F 03 E3 0A 16 07 F8 4E A5 E4 73
+Channel_0: 0x0560          28V voltage: 1.109V
+Channel_1: 0x03F0          28V current: 0.812A
+Channel_2: 0x03EE          5V voltage: 0.811V
+Channel_3: 0x037F          5V current: 0.721A
+Channel_4: 0x040F          -5V voltage: -0.837V
+Channel_5: 0x03E3          -5V current: 0.802A
+Channel_6: 0x0A16          board temperature: 2582.0°C
+Channel_7: 0x07F8          board VCC: 3.288V
 """
