@@ -28,18 +28,16 @@ if __name__ == "__main__":
     print(f"Serialized Packet (Hex): {' '.join(f'{b:02X}' for b in packet_bytes)}")  
 
     # PC is not real time, need adjust timeout value in practice
-    with serial.Serial(port=args.com_port, baudrate=115200, timeout=1) as ser: #if did not receive char in 100ms, then break out
+    with serial.Serial(port=args.com_port, baudrate=115200, timeout=2) as ser: #if did not receive char in 100ms, then break out
         bytes_written = ser.write(packet_bytes)  # Send a test string
         #response = ser.read(1024)  # Read response
 
         print(f"Send {bytes_written} bytes")
 
-        response = bytearray()
-        while True:
-            byte = ser.read(1)  # Read 1 byte at a time
-            if not byte:  # Timeout occurred (no data received within 1us)
-                break
-            response.extend(byte)
+        #expect response
+        validation, response = CCSDS_Packet.get_packet( ser )
+
+      
         hex_output = " ".join(f"{byte:02X}" for byte in response)
 
         print(f"Received Packet ({len(response)}):")

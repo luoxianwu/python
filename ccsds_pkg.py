@@ -66,6 +66,16 @@ class CCSDS_Packet_Header(BigEndianStructure):
 
 
 class CCSDS_Packet:
+    STATE_IDLE = 0
+    STATE_SYNC = 1
+    STATE_PRIMARY_HEADER = 2
+    STATE_SECONDARY_HEADER = 3
+    STATE_DATA = 4
+    STATE_VALID = 5
+    STATE_CRC_ERR = 6
+
+    SYNC_BYTES = 2
+
     def __init__(self, header: CCSDS_Packet_Header, data: bytes = None, crc: int = None):
         """
         Initialize the CCSDS packet with a header and dynamic-length data.
@@ -81,7 +91,10 @@ class CCSDS_Packet:
         if (self.header.data_length == 0):
             self.header.data_length = self.header.SEC_HDR_LEN + len(self.data) + self.header.CRC_LEN
         self.crc32 = crc if crc is not None else self.calculate_crc()
-
+        
+        self.rx_state = CCSDS_Packet.STATE_IDLE
+        self.rx_count = 0
+        
 
     def calculate_crc(self):
         """
@@ -282,6 +295,67 @@ class CCSDS_Packet:
             raise ValueError(f"Invalid CRC: Calculated 0x{packet.crc32:08X}, Expected 0x{crc:08X}.")
 
         return packet
+    
+
+    def reset_receive_packet(self):
+        self.state = CCSDS_Packet.STATE_IDLE
+        self.bytes_received = 0
+        self.data_length = 0
+
+    def get_packet(ser):
+        packet = bytearray()
+        state = CCSDS_Packet.STATE_IDLE
+        bytes_received = 0
+        data_length = 0
+
+        while True:
+            byte = ser.read(1)
+            if not byte:
+                break
+            
+            packet.extend(byte)
+            bytes_received += 1
+
+            if state == CCSDS_Packet.STATE_IDLE:
+                state = CCSDS_Packet.STATE_SYNC
+
+            elif state == CCSDS_Packet.STATE_SYNC:
+                if bytes_received == 2:
+                    if packet[0] == 0x55 and packet[1] == 0xAA:
+                        state = CCSDS_Packet.STATE_PRIMARY_HEADER
+                    else:
+                        packet[0] = packet[1]
+                        bytes_received = 1
+
+            elif state == CCSDS_Packet.STATE_PRIMARY_HEADER:
+                if bytes_received == CCSDS_Packet.SYNC_BYTES + CCSDS_Packet_Header.PRI_HDR_LEN:
+                    data_length = (packet[-2] << 8) + packet[-1] + 1
+                    state = CCSDS_Packet.STATE_SECONDARY_HEADER
+
+            elif state == CCSDS_Packet.STATE_SECONDARY_HEADER:
+                if bytes_received == (CCSDS_Packet.SYNC_BYTES + 
+                                      CCSDS_Packet_Header.PRI_HDR_LEN + 
+                                      CCSDS_Packet_Header.SEC_HDR_LEN):
+                    state = CCSDS_Packet.STATE_DATA
+
+            elif state == CCSDS_Packet.STATE_DATA:
+                if bytes_received == (CCSDS_Packet.SYNC_BYTES + 
+                                      CCSDS_Packet_Header.PRI_HDR_LEN + 
+                                      data_length):
+                    crc_calculated = zlib.crc32(packet[:-CCSDS_Packet_Header.CRC_LEN]) & 0xFFFFFFFF
+                    crc_received = int.from_bytes(packet[-CCSDS_Packet_Header.CRC_LEN:], 'big')
+
+                    if crc_calculated == crc_received:
+                        print("packet CRC valid")
+                        return True, packet
+                    else:
+                        print(f"packet CRC: {crc_received}, calculated CRC: {crc_calculated}")
+                        return False, packet
+
+        return False, packet
+
+
+
 
 
 if __name__ == "__main__":

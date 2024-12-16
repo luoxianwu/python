@@ -1,12 +1,11 @@
 import struct
 
-
 RED = "\033[91m"
 RESET = "\033[0m"
 
 def format_with_threshold(value, low, high, format_str, is_temperature=False, is_vcc=False):
     if is_temperature:
-        converted_value = value  # No conversion for temperature
+        converted_value = value / 128.0  # received data is temperature * 128
     elif is_vcc:
         converted_value = value / 4095 * 3.3 * 2  # Special conversion for board VCC
     else:
@@ -17,14 +16,14 @@ def format_with_threshold(value, low, high, format_str, is_temperature=False, is
     return formatted
 
 annotations = [
-    lambda v: format_with_threshold(v, 1.000, 3.000, "28V voltage: {:.3f}V"),
-    lambda v: format_with_threshold(v, 1.000, 3.000, "28V current: {:.3f}A"),
-    lambda v: format_with_threshold(v, 1.000, 3.000, "5V voltage: {:.3f}V"),
-    lambda v: format_with_threshold(v, 1.000, 3.000, "5V current: {:.3f}A"),
-    lambda v: format_with_threshold(v, 1.000, 3.000, "-5V voltage: -{:.3f}V"),
-    lambda v: format_with_threshold(v, 1.000, 3.000, "-5V current: {:.3f}A"),
-    lambda v: format_with_threshold(v, 0, 50, "board temperature: {:.1f}°C", is_temperature=True),
-    lambda v: format_with_threshold(v, 3.00, 3.80, "board VCC: {:.3f}V", is_vcc=True)
+    lambda v: format_with_threshold(v, 1.000, 3.000, "28V voltage:\t {:.3f}V"),
+    lambda v: format_with_threshold(v, 1.000, 3.000, "28V current:\t {:.3f}A"),
+    lambda v: format_with_threshold(v, 1.000, 3.000, "5V voltage:\t {:.3f}V"),
+    lambda v: format_with_threshold(v, 1.000, 3.000, "5V current:\t {:.3f}A"),
+    lambda v: format_with_threshold(v, 1.000, 3.000, "-5V voltage:\t -{:.3f}V"),
+    lambda v: format_with_threshold(v, 1.000, 3.000, "-5V current:\t {:.3f}A"),
+    lambda v: format_with_threshold(v, 0, 20, "board temperature:\t {:.2f}°C", is_temperature=True),
+    lambda v: format_with_threshold(v, 3.00, 3.80, "board VCC:\t {:.3f}V", is_vcc=True)
 ]
 
 def get_annotation(index, value):   
