@@ -307,7 +307,8 @@ class CCSDS_Packet:
         state = CCSDS_Packet.STATE_IDLE
         bytes_received = 0
         data_length = 0
-
+        valid = False
+        print("\nReceive Packet...")
         while True:
             byte = ser.read(1)
             if not byte:
@@ -315,6 +316,7 @@ class CCSDS_Packet:
             
             packet.extend(byte)
             bytes_received += 1
+            print( byte.hex().upper() + " ", end="")
 
             if state == CCSDS_Packet.STATE_IDLE:
                 state = CCSDS_Packet.STATE_SYNC
@@ -342,17 +344,19 @@ class CCSDS_Packet:
                 if bytes_received == (CCSDS_Packet.SYNC_BYTES + 
                                       CCSDS_Packet_Header.PRI_HDR_LEN + 
                                       data_length):
-                    crc_calculated = zlib.crc32(packet[:-CCSDS_Packet_Header.CRC_LEN]) & 0xFFFFFFFF
+                    print(f"\nreceived {bytes_received} bytes.")
+                    crc_calculated = zlib.crc32(packet[2:-CCSDS_Packet_Header.CRC_LEN]) & 0xFFFFFFFF
                     crc_received = int.from_bytes(packet[-CCSDS_Packet_Header.CRC_LEN:], 'big')
 
                     if crc_calculated == crc_received:
                         print("packet CRC valid")
-                        return True, packet
+                        valid = True
                     else:
-                        print(f"packet CRC: {crc_received}, calculated CRC: {crc_calculated}")
-                        return False, packet
+                        print(f"packet CRC: 0x{crc_received:08X}, calculated CRC: 0x{crc_calculated:08X}")
+                        valid = False
 
-        return False, packet
+        
+        return valid, packet
 
 
 
