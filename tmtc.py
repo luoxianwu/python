@@ -20,7 +20,17 @@ if __name__ == "__main__":
     print(args)
     print(type(args))
 
-    packet = CCSDS_Packet.from_file(args.file)
+    # Check if the file path ends with '.bin'
+    if args.file.endswith(".bin"):
+      # Process CCSDS binary file 
+      with open(args.file, 'rb') as f:  # Open in binary read mode ('rb')
+        binary_data = f.read()
+      packet = CCSDS_Packet.from_bytes(binary_data)
+    elif args.file.endswith(".sds"): 
+      packet = CCSDS_Packet.from_file(args.file)
+    else :
+       print("invalid file extension!")
+
     print(packet)
 
     # Serialize to bytes
@@ -36,6 +46,9 @@ if __name__ == "__main__":
 
         #expect response
         validation, response = CCSDS_Packet.get_packet( ser )
+
+        with open("abc.bin", 'wb') as output_file: 
+            output_file.write(response[2:])
 
         if validation:
           
