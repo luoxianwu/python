@@ -1,9 +1,21 @@
 import tkinter as tk
-from tkinter import Menu, messagebox
+from tkinter import Menu, messagebox, filedialog
+import os  # Import os to get the current directory
 
-# Function to handle menu actions for Panel 1 (TeleCommand)
-def panel1_action(action):
-    messagebox.showinfo("TeleCommand", f"Panel 1: {action} selected!")
+# Function to handle file selection for Panel 1 (TeleCommand)
+def select_ccsds_file():
+    # Get the current working directory
+    current_directory = os.getcwd()
+
+    # Open file dialog starting at the current directory
+    file_path = filedialog.askopenfilename(
+        initialdir=current_directory,  # Set initial directory to current folder
+        title="Select CCSDS File",
+        filetypes=[("CCSDS Files", "*.sds"), ("All Files", "*.*")]
+    )
+
+    if file_path:
+        messagebox.showinfo("TeleCommand", f"Selected File: {file_path}")
 
 # Function to handle menu actions for Panel 1 (Edit)
 def panel1_edit_action(action):
@@ -19,7 +31,7 @@ def panel2_view_action(action):
 
 # Create the main window
 root = tk.Tk()
-root.title("CCSDS simulator")
+root.title("CCSDS Simulator")
 root.geometry("600x400")  # Set initial size
 
 # Create a PanedWindow (resizable container) with HORIZONTAL orientation
@@ -40,8 +52,8 @@ panel1_menu_button.pack(side=tk.LEFT, padx=5, pady=2)
 
 # Create a dropdown menu for "TeleCommand"
 panel1_menu = Menu(panel1_menu_button, tearoff=0)
-panel1_menu.add_command(label="Send a ccsds file", command=lambda: panel1_action("Send a ccsds file"))
-panel1_menu.add_command(label="Send a ccsds file periodicly", command=lambda: panel1_action("Send a ccsds file periodicly"))
+panel1_menu.add_command(label="Send a CCSDS file", command=select_ccsds_file)
+panel1_menu.add_command(label="Send a CCSDS file periodically", command=lambda: messagebox.showinfo("TeleCommand", "Periodic file sending started."))
 
 # Attach the menu to the button
 panel1_menu_button["menu"] = panel1_menu
