@@ -1,6 +1,57 @@
 import tkinter as tk
 from tkinter import Menu, messagebox, filedialog
 import os  # Import os to list files in the directory
+from tkinter import ttk, messagebox
+import serial.tools.list_ports
+import serial
+
+# Global variable to store the selected COM port
+selected_com_port = None
+ser = None  # Serial connection object
+
+# Function to ask the user to select a COM port
+def select_com_port():
+    global selected_com_port, ser
+
+    # Get available COM ports
+    ports = [port.device for port in serial.tools.list_ports.comports()]
+
+    if not ports:
+        messagebox.showwarning("COM Port", "No COM ports detected! Plug in a device and restart.")
+        exit()  # Exit the application if no COM port is found
+
+    # Create a selection window
+    port_window = tk.Tk()
+    port_window.title("Select COM Port")
+    port_window.geometry("300x150")
+    port_window.resizable(False, False)
+
+    tk.Label(port_window, text="Available COM Ports:").pack(pady=5)
+
+    # Create a dropdown (Combobox) with available COM ports
+    port_var = tk.StringVar()
+    port_dropdown = ttk.Combobox(port_window, textvariable=port_var, values=ports, state="readonly")
+    port_dropdown.pack(pady=5)
+    port_dropdown.current(0)  # Select the first available port
+
+    def confirm_selection():
+        global selected_com_port, ser
+        selected_com_port = port_var.get()
+        port_window.destroy()
+
+        # Try opening the COM port
+        try:
+            ser = serial.Serial(selected_com_port, baudrate=9600, timeout=1)
+            messagebox.showinfo("COM Port", f"Connected to {selected_com_port}")
+        except Exception as e:
+            messagebox.showerror("COM Port", f"Failed to connect: {str(e)}")
+            select_com_port()  # Retry selection if connection fails
+
+    # OK Button
+    tk.Button(port_window, text="OK", command=confirm_selection).pack(pady=10)
+
+    port_window.mainloop()  # Run the window
+
 
 # Function to list all .sds files and update the Edit menu
 def update_edit_menu():
@@ -105,6 +156,8 @@ def panel2_view_action(action):
     messagebox.showinfo("View", f"View Menu: {action} selected!")
 
 # Create the main window
+# Run the function to ask for COM port selection
+select_com_port()
 root = tk.Tk()
 root.title("CCSDS Simulator")
 root.geometry("800x500")
