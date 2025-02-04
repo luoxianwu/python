@@ -3,31 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flask Socket.IO Count</title>
+    <title>COM Port WebSocket</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.js"></script>
 </head>
 <body>
-    <h1>Current Count: <span id="count">0</span></h1>
+    <h2>Serial COM Port Monitor</h2>
+    <div id="output"></div>
+    
+    <input type="text" id="serialInput" placeholder="Type a message">
+    <button onclick="sendToSerial()">Send</button>
 
     <script>
-        // Connect to the Flask Socket.IO server
-        const socket = io("http://localhost:5000");
+        var socket = io();
 
-        // Log connection
-        socket.on("connect", () => {
-            console.log("Connected to server");
+        // Receive serial data from the server
+        socket.on("serial_data", function(data) {
+            var outputDiv = document.getElementById("output");
+            outputDiv.innerHTML += `<p>📡 Received: ${data.data}</p>`;
         });
 
-        // Listen for 'update_count' events from the server
-        socket.on("update_count", function(data) {
-            console.log("Received update_count event:", data);
-            document.getElementById("count").textContent = data.count;
-        });
-
-        // Log disconnections
-        socket.on("disconnect", () => {
-            console.log("Disconnected from server");
-        });
+        // Send data to serial port via server
+        function sendToSerial() {
+            var message = document.getElementById("serialInput").value;
+            if (message) {
+                socket.emit("send_to_serial", { message: message });
+                document.getElementById("serialInput").value = "";
+            }
+        }
     </script>
 </body>
 </html>
