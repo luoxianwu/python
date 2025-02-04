@@ -3,33 +3,244 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>COM Port WebSocket</title>
+    <title>CCSDS Simulator</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .top-bar {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #444;
+            padding: 10px;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        select {
+            padding: 8px;
+            border-radius: 5px;
+            border: none;
+            font-size: 16px;
+            margin-left: 10px;
+        }
+
+        /* Main container using grid layout for resizing */
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 8px 1fr; /* Two panels + resizer */
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .panel {
+            display: flex;
+            flex-direction: column;
+            background: white;
+            overflow: hidden;
+            min-width: 200px;
+        }
+
+        .panel h3 {
+            text-align: center;
+            background: #28a745;
+            color: white;
+            padding: 10px;
+            margin: 0;
+        }
+
+        .message-box {
+            flex: 1;
+            padding: 10px;
+            overflow-y: auto;
+            background: #fafafa;
+            border-bottom: 1px solid #ccc;
+        }
+
+        .input-group {
+            padding: 10px;
+            background: #fff;
+            display: flex;
+            gap: 5px;
+        }
+
+        input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        button {
+            padding: 10px;
+            border: none;
+            background: #28a745;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        button:hover {
+            background: #218838;
+        }
+
+        /* Draggable resizer */
+        .resizer {
+            background: #666;
+            cursor: ew-resize;
+            width: 8px;
+            height: 100%;
+        }
+
+        .resizer:hover {
+            background: #ffcc00;
+        }
+    </style>
 </head>
 <body>
-    <h2>Serial COM Port Monitor</h2>
-    <div id="output"></div>
-    
-    <input type="text" id="serialInput" placeholder="Type a message">
-    <button onclick="sendToSerial()">Send</button>
+
+    <div class="top-bar">
+        <label for="comPortSelect">Select COM Port:</label>
+        <select id="comPortSelect">
+            <option disabled selected>Click to load ports...</option>
+        </select>
+    </div>
+
+    <div class="container">
+        <!-- Receive Panel -->
+        <div class="panel" id="leftPanel">
+            <h3>📡 Received Messages</h3>
+            <div id="output" class="message-box"></div>
+        </div>
+
+        <!-- Resizer Divider -->
+        <div class="resizer" id="resizer"></div>
+
+        <!-- Send Panel -->
+        <div class="panel" id="rightPanel">
+            <h3>📤 Send Message</h3>
+            <div class="input-group">
+                <input type="text" id="serialInput" placeholder="Type a message">
+                <button onclick="sendToSerial()">Send</button>
+            </div>
+        </div>
+    </div>
 
     <script>
         var socket = io();
+        var selectedPort = "";
+        var select = document.getElementById("comPortSelect");
 
-        // Receive serial data from the server
-        socket.on("serial_data", function(data) {
-            var outputDiv = document.getElementById("output");
-            outputDiv.innerHTML += `<p>📡 Received: ${data.data}</p>`;
+        // Fetch available COM ports when dropdown is clicked
+        select.addEventListener("mousedown", function(event) {
+            if (!this.dataset.refreshed || this.dataset.refreshed === "false") {
+                console.log("get_com_ports");
+                socket.emit("get_com_ports");  
+                this.dataset.refreshed = "true";  
+            }
         });
 
-        // Send data to serial port via server
+        // Handle COM port selection
+        select.addEventListener("change", function() {
+            selectedPort = this.value;
+            console.log("✅ User selected:", selectedPort);
+            socket.emit("select_com_port", { port: selectedPort });
+            select.dataset.refreshed = "false";
+        });
+
+        // Handle server response with available COM ports
+        socket.on("com_ports", function(ports) {
+            console.log("📡 Available Ports:", ports);
+            let previousSelection = select.value;
+            select.innerHTML = "";  
+
+            if (ports.length === 0) {
+                select.innerHTML = "<option disabled>No COM ports found</option>";
+                return;
+            }
+
+            ports.forEach(function(port) {
+                var option = document.createElement("option");
+                option.value = port;
+                option.textContent = port;
+                select.appendChild(option);
+            });
+
+            if (ports.includes(previousSelection)) {
+                select.value = previousSelection;
+            } else {
+                selectedPort = ports[0];  
+                select.value = selectedPort;
+            }
+
+            console.log("📌 Current selection:", select.value);
+        });
+
+        // Handle incoming serial data from the server
+        socket.on("serial_data", function(data) {
+            console.log("📡 Received from COM:", data.data);
+
+            var outputDiv = document.getElementById("output");
+            var newMessage = document.createElement("p");
+            newMessage.innerHTML = `📡 <strong>Received:</strong> ${data.data}`;
+            outputDiv.appendChild(newMessage);
+
+            outputDiv.scrollTop = outputDiv.scrollHeight;
+        });
+
+        // Function to send data to the selected COM port
         function sendToSerial() {
             var message = document.getElementById("serialInput").value;
-            if (message) {
-                socket.emit("send_to_serial", { message: message });
-                document.getElementById("serialInput").value = "";
+            if (message && selectedPort) {
+                console.log("📤 Sending message:", message, "to", selectedPort);
+                socket.emit("send_to_serial", { port: selectedPort, message: message });
+                document.getElementById("serialInput").value = "";  
+            } else {
+                console.error("❌ No port selected or empty message!");
+                alert("Please select a COM port and enter a message before sending.");
+            }
+        }
+
+        // **Unlimited Resizing using Grid**
+        const resizer = document.getElementById("resizer");
+        const container = document.querySelector(".container");
+
+        let isResizing = false;
+
+        resizer.addEventListener("mousedown", function (e) {
+            isResizing = true;
+            document.addEventListener("mousemove", resizePanels);
+            document.addEventListener("mouseup", () => isResizing = false, { once: true });
+        });
+
+        function resizePanels(e) {
+            if (!isResizing) return;
+
+            let totalWidth = container.clientWidth;
+            let leftWidth = e.clientX / totalWidth * 100;
+            let rightWidth = 100 - leftWidth;
+
+            if (leftWidth > 15 && rightWidth > 15) {  // Prevent extreme shrinking
+                container.style.gridTemplateColumns = `${leftWidth}% 8px ${rightWidth}%`;
             }
         }
     </script>
+
 </body>
 </html>

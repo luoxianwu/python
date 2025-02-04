@@ -1,0 +1,1 @@
+pip install eventlet pyserial flask flask-socketio
