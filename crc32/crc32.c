@@ -57,6 +57,10 @@ int main() {
     // Data to calculate CRC32 for
     unsigned char data[] = {1, 2, 3, 4, 5};
 
+    for( int i = 0; i < sizeof(data); i++)
+        printf("0x%02x ", data[i]);
+    printf("\n");
+
     uint32_t crc32_result = crc32(0L, Z_NULL, 0); // Initialize CRC
 
     crc32_result = crc32(crc32_result, (const unsigned char *)data, strlen(data));

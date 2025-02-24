@@ -11,8 +11,8 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "args": [
-                "COM20",
-                "y.sds"
+                "COM18",
+                "tm-adc.sds"
             ]
         }
     ]
