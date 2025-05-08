@@ -28,25 +28,48 @@ annotations = [
     lambda v: format_with_threshold(v, 0.5, 1.5, "5V current:\t {:.3f}A", is_5v_current=True),
     lambda v: format_with_threshold(v, -5.25, -4.75, "-5V voltage:\t -{:.3f}V", is_neg5v=True),
     lambda v: format_with_threshold(v, 0.5, 1.5, "-5V current:\t {:.3f}A", is_neg5v_current=True),
-    lambda v: format_with_threshold(v, 0, 20, "board temperature:\t {:.2f}°C", is_temperature=True),
+    lambda v: format_with_threshold(v, 15, 30, "board temperature:\t {:.2f}°C", is_temperature=True),
     lambda v: format_with_threshold(v, 3.00, 3.80, "board VCC:\t {:.3f}V", is_vcc=True)
 ]
 
 def get_annotation(index, value):
     return annotations[index % len(annotations)](value)
 
-class Telemetery:
+import struct
+
+class Telemetry:  # Fixed typo
     @staticmethod
-    def parse( ccsds_pkt):
+    def parse(ccsds_pkt):
         user_data = ccsds_pkt.data
-        #user data parse
-        # ADC
-        chunk_size = 2
-        # Calculate the number of 16-bit integers in the data
-        num_chunks = len(user_data) // chunk_size
-        # Parse the data as big-endian 16-bit integers
-        adc_values = struct.unpack(f'>{num_chunks}H', user_data)
-        # Print each chunk with index and value in hexadecimal format
-        for index, value in enumerate(adc_values):
-            annotation = get_annotation(index, value)  # Get annotation for this chunk
-            print(f"Channel_{index}: 0x{value:04X}          {annotation}") 
+        
+        # Check if data is long enough for version and counter
+        if len(user_data) < 4:
+            print("Error: Data too short to parse version and counter")
+            return
+        
+        # Parse the first 4 bytes
+        sw_major = user_data[0]  # 1st byte: Software major version
+        sw_minor = user_data[1]  # 2nd byte: Software minor version
+        counter = struct.unpack('<H', user_data[2:4])[0]  # 3rd and 4th bytes: 16-bit counter (little-endian)
+        
+        # Print parsed values
+        print(f"SW Major Version: {sw_major}")
+        print(f"SW Minor Version: {sw_minor}")
+        print(f"Counter: 0x{counter:04X} ({counter})")
+ 
+        # ADC parsing
+        adc_data = user_data[4:]  # Everything after the first 4 bytes
+        chunk_size = 2  # Bytes per ADC value
+        adc_number = len(adc_data) // chunk_size  # Dynamically calculate number of ADC values
+        
+        if adc_number > 0:  # Only parse if there’s ADC data
+            try:
+                adc_values = struct.unpack(f'<{adc_number}H', adc_data)  # Little-endian
+                for index, value in enumerate(adc_values):
+                    annotation = get_annotation(index, value)  # Assumes this is defined elsewhere
+                    print(f"Channel_{index}: 0x{value:04X}          {annotation}")
+            except struct.error as e:
+                print(f"Error parsing ADC values: {e}")
+        else:
+            print("No ADC data to parse")
+
