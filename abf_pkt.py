@@ -47,7 +47,7 @@ class ABF_Packet:
         """
         header_bytes = bytes(self.header)
         # CRC is calculated over header + data
-        crc_data = header_bytes + self.data
+        crc_data = header_bytes[2:] + self.data
         return zlib.crc32(crc_data) & 0xFFFFFFFF
 
     def to_bytes(self):
@@ -89,9 +89,8 @@ class ABF_Packet:
         packet_length = header.packet_length
         header_plus_crc_len = ctypes.sizeof(ABF_Packet_Header) + 4
 
-        if packet_length < header_plus_crc_len:
-            print( {packet_length}, {header_plus_crc_len})
-            raise ValueError("Invalid packet: packet_length is too small")
+        if packet_length < 8: #4 inheader + 4 CRC32
+            raise ValueError(f"Invalid packet: packet_length is too small {packet_length}")
         
         # Extract data.  The packet_length includes 4 bytes in header and 4 bytes CRC, so subtract.
         packet_length_without_crc = packet_length - 4 - 4
@@ -112,7 +111,7 @@ class ABF_Packet:
 
 
         # Calculate CRC
-        calculated_crc = zlib.crc32(header_bytes + data) & 0xFFFFFFFF
+        calculated_crc = zlib.crc32(header_bytes[2:] + data) & 0xFFFFFFFF
 
         if received_crc != calculated_crc:
             raise ValueError(f"Invalid CRC: Expected 0x{received_crc:08X}, Calculated 0x{calculated_crc:08X}")
@@ -182,147 +181,133 @@ class ABF_Packet:
         
         return packet
     
-import zlib
+    import zlib
+    from typing import Tuple, ByteString, Dict
 
-# Define meaningful names for the states
-STATE_IDLE = 0
-STATE_SYNC = 1
-STATE_LENGTH = 2
-STATE_FUNCTION = 3
-STATE_COUNT = 4
-STATE_RESERVED = 5
-STATE_DATA = 6
-STATE_CRC = 7
-STATE_VALID = 8
+    # Define meaningful names for the states
+    STATE_IDLE = 0
+    STATE_SYNC = 1
+    STATE_LENGTH = 2
+    STATE_FUNCTION = 3
+    STATE_COUNT = 4
+    STATE_RESERVED = 5
+    STATE_DATA = 6
+    STATE_CRC = 7
+    STATE_VALID = 8
 
-STATE_SYNC_ERR = 0x81
-STATE_LENGTH_ERR = 0x82
-STATE_FUNCTION_ERR = 0x83
-STATE_COUNT_ERR = 0x84
-STATE_CRC_ERR = 0x85
-STATE_FRAME_ERR = 0x86
-
-
-import zlib
-from typing import Tuple, ByteString, Dict
-
-# Define meaningful names for the states
-STATE_IDLE = 0
-STATE_SYNC = 1
-STATE_LENGTH = 2
-STATE_FUNCTION = 3
-STATE_COUNT = 4
-STATE_RESERVED = 5
-STATE_DATA = 6
-STATE_CRC = 7
-STATE_VALID = 8
-
-STATE_SYNC_ERR = 0x81
-STATE_LENGTH_ERR = 0x82
-STATE_FUNCTION_ERR = 0x83
-STATE_COUNT_ERR = 0x84
-STATE_CRC_ERR = 0x85
-STATE_FRAME_ERR = 0x86
+    STATE_SYNC_ERR = 0x81
+    STATE_LENGTH_ERR = 0x82
+    STATE_FUNCTION_ERR = 0x83
+    STATE_COUNT_ERR = 0x84
+    STATE_CRC_ERR = 0x85
+    STATE_FRAME_ERR = 0x86
 
 
-def get_packet(ser) -> Dict[str, any]:
-    rec_packet = bytearray()
-    current_state = STATE_IDLE
-    received_bytes = 0
-    packet_length = 0
-    print("\nReceive Packet...")
-    while True:
-        byte = ser.read(1)
-        if not byte:
-            break
-
-        rec_packet.extend(byte)
-        received_bytes += 1
-        print(byte.hex().upper() + " ", end="")
-
-        if current_state == STATE_IDLE:
-            current_state = STATE_SYNC
-
-        elif current_state == STATE_SYNC:
-            if received_bytes == 2:
-                if rec_packet[0] == 0x55 and rec_packet[1] == 0xAA:
-                    current_state = STATE_LENGTH
-                else:
-                    print("\nSync Error. Discarding first byte and looking for sync...")
-                    rec_packet = rec_packet[1:]  # Discard the first byte
-                    received_bytes = 1
-            elif received_bytes > 2:
-                print("\nSync Error. Discarding packet and looking for sync...")
-                rec_packet = bytearray(byte) # Start over with the current byte
-                received_bytes = 1
-
-        elif current_state == STATE_LENGTH:
-            if received_bytes == 4:
-                packet_length = rec_packet[-2] + (rec_packet[-1] << 8)
-                if packet_length < 8: # Minimum length should include Function, Count, Reserved, CRC
-                    print(f"\nLength Error: Packet length too short ({packet_length})")
-                    current_state = STATE_LENGTH_ERR # Or reset to STATE_IDLE depending on desired behavior
-                    break
-                current_state = STATE_FUNCTION
-
-        elif current_state == STATE_FUNCTION:
-            if received_bytes == 5:
-                print(f"\nFunction: 0x{rec_packet[4]:02X}")
-                current_state = STATE_COUNT
-
-        elif current_state == STATE_COUNT:
-            if received_bytes == 6:
-                print(f"Count: 0x{rec_packet[5]:02X}")
-                current_state = STATE_RESERVED
-
-        elif current_state == STATE_RESERVED:
-            if received_bytes == 8:
-                reserved = int.from_bytes(rec_packet[6:8], 'little')
-                print(f"Reserved: 0x{reserved:04X}")
-                if packet_length > 8:
-                    current_state = STATE_DATA
-                else:
-                    current_state = STATE_CRC
-
-        elif current_state == STATE_DATA:
-            if received_bytes == 4 + packet_length - 4: # Sync + Length + Function + Count + Reserved + Data
-                print(f"Data (Hex): {' '.join([f'{b:02X}' for b in rec_packet[8:-4]])}")
-                current_state = STATE_CRC
-            elif received_bytes > 4 + packet_length - 4:
-                print("\nFrame Error: Received more bytes than expected based on packet length.")
-                current_state = STATE_FRAME_ERR
+    def get_packet(ser) -> Dict[str, any]:
+        rec_packet = bytearray()
+        current_state = ABF_Packet.STATE_IDLE
+        received_bytes = 0
+        packet_length = 0
+        print("\nReceive Packet...")
+        while True:
+            byte = ser.read(1)
+            if not byte:
                 break
 
-        elif current_state == STATE_CRC:
-            if received_bytes == 4 + packet_length:
-                print(f"Received {received_bytes} bytes.")
-                if packet_length >= 4: # Ensure there's enough data for CRC
-                    crc_calculated = zlib.crc32(rec_packet[2:-4]) & 0xFFFFFFFF  # exclusive sync word and crc
-                    crc_received = int.from_bytes(rec_packet[-4:], 'little')
+            rec_packet.extend(byte)
+            received_bytes += 1
+            print(byte.hex().upper() + " ", end="")
 
-                    if crc_calculated == crc_received:
-                        print("Packet CRC valid")
-                        current_state = STATE_VALID
+            if current_state == ABF_Packet.STATE_IDLE:
+                current_state = ABF_Packet.STATE_SYNC
+
+            elif current_state == ABF_Packet.STATE_SYNC:
+                if received_bytes == 2:
+                    if rec_packet[0] == 0x55 and rec_packet[1] == 0xAA:
+                        current_state = ABF_Packet.STATE_LENGTH
                     else:
-                        print(f"Packet CRC: 0x{crc_received:08X}, calculated CRC: 0x{crc_calculated:08X}")
-                        current_state = STATE_CRC_ERR
-                else:
-                    print("Error: Insufficient data for CRC check.")
-                    current_state = STATE_FRAME_ERR
-                break
+                        print("\nSync Error. Discarding first byte and looking for sync...")
+                        rec_packet = rec_packet[1:]  # Discard the first byte
+                        received_bytes = 1
+                elif received_bytes > 2:
+                    print("\nSync Error. Discarding packet and looking for sync...")
+                    rec_packet = bytearray(byte) # Start over with the current byte
+                    received_bytes = 1
 
-        elif current_state in [STATE_SYNC_ERR, STATE_LENGTH_ERR, STATE_FUNCTION_ERR, STATE_COUNT_ERR, STATE_CRC_ERR, STATE_FRAME_ERR]:
-            print("\nError state. Exiting packet reception.")
-            break # Or potentially add logic to try and resynchronize
+            elif current_state == ABF_Packet.STATE_LENGTH:
+                if received_bytes == 4:
+                    packet_length = rec_packet[-2] + (rec_packet[-1] << 8)
+                    if packet_length < 8: # Minimum length should include Function, Count, Reserved, CRC
+                        print(f"\nLength Error: Packet length too short ({packet_length})")
+                        current_state = ABF_Packet.STATE_LENGTH_ERR # Or reset to STATE_IDLE depending on desired behavior
+                        break
+                    current_state = ABF_Packet.STATE_FUNCTION
 
-    return {
-        "state": current_state,
-        "bytes_received": received_bytes,
-        "packet_length": packet_length,
-        "rec_packet": rec_packet
-    }
+            elif current_state == ABF_Packet.STATE_FUNCTION:
+                if received_bytes == 5:
+                    print(f"\nFunction: 0x{rec_packet[4]:02X}")
+                    current_state = ABF_Packet.STATE_COUNT
+
+            elif current_state == ABF_Packet.STATE_COUNT:
+                if received_bytes == 6:
+                    print(f"Count: 0x{rec_packet[5]:02X}")
+                    current_state = ABF_Packet.STATE_RESERVED
+
+            elif current_state == ABF_Packet.STATE_RESERVED:
+                if received_bytes == 8:
+                    reserved = int.from_bytes(rec_packet[6:8], 'little')
+                    print(f"Reserved: 0x{reserved:04X}")
+                    if packet_length > 8:
+                        current_state = ABF_Packet.STATE_DATA
+                    else:
+                        current_state = ABF_Packet.STATE_CRC
+
+            elif current_state == ABF_Packet.STATE_DATA:
+                if received_bytes == 4 + packet_length - 4: # Sync + Length + Function + Count + Reserved + Data
+                    print(f"Data (Hex): {' '.join([f'{b:02X}' for b in rec_packet[8:-4]])}")
+                    current_state = ABF_Packet.STATE_CRC
+                elif received_bytes > 4 + packet_length - 4:
+                    print("\nFrame Error: Received more bytes than expected based on packet length.")
+                    current_state = ABF_Packet.STATE_FRAME_ERR
+                    break
+
+            elif current_state == ABF_Packet.STATE_CRC:
+                if received_bytes == 4 + packet_length:
+                    print(f"Received {received_bytes} bytes.")
+                    if packet_length >= 4: # Ensure there's enough data for CRC
+                        crc_calculated = zlib.crc32(rec_packet[2:-4]) & 0xFFFFFFFF  # exclusive sync word and crc
+                        crc_received = int.from_bytes(rec_packet[-4:], 'little')
+
+                        if crc_calculated == crc_received:
+                            print("Packet CRC valid")
+                            current_state = ABF_Packet.STATE_VALID
+                        else:
+                            print(f"Packet CRC: 0x{crc_received:08X}, calculated CRC: 0x{crc_calculated:08X}")
+                            current_state = ABF_Packet.STATE_CRC_ERR
+                    else:
+                        print("Error: Insufficient data for CRC check.")
+                        current_state = ABF_Packet.STATE_FRAME_ERR
+                    break
+
+            elif current_state in [ABF_Packet.STATE_SYNC_ERR, ABF_Packet.STATE_LENGTH_ERR, ABF_Packet.STATE_FUNCTION_ERR, ABF_Packet.STATE_COUNT_ERR, ABF_Packet.STATE_CRC_ERR, STATE_FRAME_ERR]:
+                print("\nError state. Exiting packet reception.")
+                break # Or potentially add logic to try and resynchronize
+
+        return {
+            "state": current_state,
+            "bytes_received": received_bytes,
+            "packet_length": packet_length,
+            "rec_packet": rec_packet
+        }
 
 if __name__ == "__main__":
+
+    #data = bytes([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x00])
+    data = bytes([0x08, 0x00, 0x02, 0x01, 0x00, 0x00])
+    crc = zlib.crc32(data) & 0xFFFFFFFF
+    print(f"Data (Hex): {' '.join([f'{b:02X}' for b in data])}")
+    print(f"CRC32 (Python zlib, default - likely non-reversed): 0x{crc:08X}")
+    print("----------------------------------------------\n\n")
     # Create an ABF packet
     header = ABF_Packet_Header()
     header.pkt_sync = (0x55, 0xAA)
