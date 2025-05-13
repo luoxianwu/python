@@ -136,3 +136,86 @@ if __name__ == "__main__":
 
     print("Parsed Result:")
     print(json.dumps(result, indent=4))
+
+    r"""
+    PS C:\Users\x-luo\python> python tm2.py
+HEALTH data length: 12 bytes
+TLM_1 data length: 28 bytes
+Input data length: 28 bytes
+Expected TLM_1 size: 28 bytes
+Software Version Major: 1
+Software Version Minor: 0
+Up Time: 305419896 s
+Reset Count: 51
+Board Temperature: 68 °C
+Cumulative Error Count: 50
+Latest Error Code: 0xAA
+Telemetry Command Count: 187
+Channel_0: 0x0556          28V voltage: 9.340V
+Channel_1: 0x03F1          28V current: 6.899A
+Channel_2: 0x03E4          5V voltage: 1.216V
+Channel_3: 0x0364          5V current: 1.060A
+Channel_4: 0x03E3          -5V voltage: -1.215V
+Channel_5: 0x03DD          -5V current: -1.208A
+Channel_6: 0x0A19          board temperature: 20.20°C
+Channel_7: 0x07FB          board VCC: 3.293V
+
+Parsed Result:
+{'health': {'sw_ver_main': 1, 'sw_ver_minor': 0, 'up_time': 305419896, 'reset_count': 51, 'board_temp': 68, 'cumulative_error_count': 50, 'latest_error_code': 170, 'tele_cmd_count': 187}, 'adc': [{'channel': 0, 'raw_value': 1366, 'formatted': '\x1b[91m28V voltage: 9.340V\x1b[0m'}, {'channel': 1, 'raw_value': 1009, 'formatted': '\x1b[91m28V current: 6.899A\x1b[0m'}, {'channel': 2, 'raw_value': 996, 'formatted': '\x1b[91m5V voltage: 1.216V\x1b[0m'}, {'channel': 3, 'raw_value': 868, 'formatted': '5V current: 1.060A'}, {'channel': 4, 'raw_value': 995, 'formatted': '\x1b[91m-5V voltage: -1.215V\x1b[0m'}, {'channel': 5, 'raw_value': 989, 'formatted': '\x1b[91m-5V current: -1.208A\x1b[0m'}, {'channel': 6, 'raw_value': 2585, 'formatted': 'board temperature: 20.20°C'}, {'channel': 7, 'raw_value': 2043, 'formatted': 'board VCC: 3.293V'}]}
+Parsed Result:
+{
+    "health": {
+        "sw_ver_main": 1,
+        "sw_ver_minor": 0,
+        "up_time": 305419896,
+        "reset_count": 51,
+        "board_temp": 68,
+        "cumulative_error_count": 50,
+        "latest_error_code": 170,
+        "tele_cmd_count": 187
+    },
+    "adc": [
+        {
+            "channel": 0,
+            "raw_value": 1366,
+            "formatted": "\u001b[91m28V voltage: 9.340V\u001b[0m"
+        },
+        {
+            "channel": 1,
+            "raw_value": 1009,
+            "formatted": "\u001b[91m28V current: 6.899A\u001b[0m"
+        },
+        {
+            "channel": 2,
+            "raw_value": 996,
+            "formatted": "\u001b[91m5V voltage: 1.216V\u001b[0m"
+        },
+        {
+            "channel": 3,
+            "raw_value": 868,
+            "formatted": "5V current: 1.060A"
+        },
+        {
+            "channel": 4,
+            "raw_value": 995,
+            "formatted": "\u001b[91m-5V voltage: -1.215V\u001b[0m"
+        },
+        {
+            "channel": 5,
+            "raw_value": 989,
+            "formatted": "\u001b[91m-5V current: -1.208A\u001b[0m"
+        },
+        {
+            "channel": 6,
+            "raw_value": 2585,
+            "formatted": "board temperature: 20.20\u00b0C"
+        },
+        {
+            "channel": 7,
+            "raw_value": 2043,
+            "formatted": "board VCC: 3.293V"
+        }
+    ]
+}
+PS C:\Users\x-luo\python>
+    """

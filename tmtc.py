@@ -63,7 +63,7 @@ if __name__ == "__main__":
             if len(ret_abf.data) != 0: 
               #for import tm2.py
               telemetry = Telemetry()
-              result = telemetry.parse(ret_abf)
+              result = telemetry.parse(ret_abf.data)
         else:
             if rec_packet_info['bytes_received'] == 0:
                 print("No response")
@@ -71,8 +71,8 @@ if __name__ == "__main__":
 
 
 r"""
-PS C:\Users\x-luo\python> python tmtc.py COM20 tlm1.abf
-Namespace(com_port='COM20', file='tlm1.abf')
+PS C:\Users\x-luo\python> python tmtc.py COM18 tlm1.abf
+Namespace(com_port='COM18', file='tlm1.abf')
 <class 'argparse.Namespace'>
 data_(hex): ""
 ABF_Packet:
@@ -88,25 +88,46 @@ Serialized Packet (Hex): 55 AA 08 00 02 01 00 00 72 81 5A F6
 Send 12 bytes
 
 Receive Packet...
-55 AA 08 00 02
+55 AA 24 00 02
 Function: 0x02
 01 Count: 0x01
 00 00 Reserved: 0x0000
-72 81 5A F6 Received 12 bytes.
+00 00 78 56 34 12 33 44 32 00 AA BB 9D 05 0B 04 BB 03 AE 03 96 03 E0 03 38 0A 03 08 Data (Hex): 00 00 78 56 34 12 33 44 32 00 AA BB 9D 05 0B 04 BB 03 AE 03 96 03 E0 03
+94 30 55 06 Received 40 bytes.
 Packet CRC valid
 Packet received successfully!
-Packet data: 55aa08000201000072815af6
-Received CRC: 0xF65A8172
+Packet data: 55aa24000201000000007856341233443200aabb9d050b04bb03ae039603e003380a030894305506
+Received CRC: 0x06553094
 ABF_Packet:
 ABF_Packet_Header:
   Sync:                 0x55 0xAA
-  Packet Length:        8
+  Packet Length:        36
   Function:             0x02
   Count:                1
   Reserved:             0x0000
-  Data (Hex):
-  CRC32:         0xF65A8172
-Serialized Packet (Hex): 55 AA 08 00 02 01 00 00 72 81 5A F6
+  Data (Hex):    00 00 78 56 34 12 33 44 32 00 AA BB 9D 05 0B 04 BB 03 AE 03 96 03 E0 03 38 0A 03 08
+  CRC32:         0x06553094
+Serialized Packet (Hex): 55 AA 24 00 02 01 00 00 00 00 78 56 34 12 33 44 32 00 AA BB 9D 05 0B 04 BB 03 AE 03 96 03 E0 03 38 0A 03 08 94 30 55 06
+HEALTH data length: 12 bytes
+TLM_1 data length: 28 bytes
+Input data length: 28 bytes
+Expected TLM_1 size: 28 bytes
+Software Version Major: 0
+Software Version Minor: 0
+Up Time: 305419896 s
+Reset Count: 51
+Board Temperature: 68 °C
+Cumulative Error Count: 50
+Latest Error Code: 0xAA
+Telemetry Command Count: 187
+Channel_0: 0x059D          28V voltage: 9.826V
+Channel_1: 0x040B          28V current: 7.077A
+Channel_2: 0x03BB          5V voltage: 1.166V
+Channel_3: 0x03AE          5V current: 1.150A
+Channel_4: 0x0396          -5V voltage: -1.121V
+Channel_5: 0x03E0          -5V current: -1.211A
+Channel_6: 0x0A38          board temperature: 20.44°C
+Channel_7: 0x0803          board VCC: 3.306V
 PS C:\Users\x-luo\python>
 
 """
