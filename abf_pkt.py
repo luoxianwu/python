@@ -140,18 +140,30 @@ class ABF_Packet:
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
-            key, value = line.split(":", 1)
-            key = key.lower().replace(" ", "_")
-            value = value.strip()
-            file_dict[key] = value
+            if ":" in line:  # Ensure there's a key-value pair
+                key, value_with_comment = line.split(":", 1)
+                key = key.lower().replace(" ", "_")
+                value = value_with_comment.split("#")[0].strip()  # Split by '#' and take the part before, then strip whitespace
+                file_dict[key] = value
 
         # Handle data (hex)
-        print(f"data_(hex): {file_dict.get('data_(hex)')}") # Print the value here
-        if "data_(hex)" in file_dict and file_dict["data_(hex)"] == "": # added condition
-            print(f"data_(hex): {file_dict.get('data_(hex)')}") # Print the value here
-            data = bytes.fromhex(file_dict["data_(hex)"])
+        print(f"data_(hex): {file_dict.get('data_(hex)')}")
+        x = file_dict["data_(hex)"].replace("0x", "").replace(",", "").replace('"', "").strip()
+        print(f"Cleaned hex string: '{x}'")
+        if x:  # Only check if the string is not empty
+            print(f"Ordinal value of first char: {ord(x[0])}")
+        print(x)
+        y = bytes.fromhex(x)
+        print(y)
+
+        if "data_(hex)" in file_dict and file_dict["data_(hex)"] != "":  # Check if key exists and is not empty
+            try:
+                data = bytes.fromhex(file_dict["data_(hex)"].replace("0x", "").replace(",", "").replace(" ", "").replace('"', "").strip()) # Clean up data string
+                data = bytes.fromhex(x)
+            except ValueError as e:
+                raise ValueError(f"Invalid hex data in input file: {e}")
         else:
-            data = b""  #  set default value
+            data = b""  # set default value
 
         # Construct header
         header = ABF_Packet_Header()

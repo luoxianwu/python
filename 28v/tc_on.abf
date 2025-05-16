@@ -1,0 +1,8 @@
+ABF_Packet:
+  Sync:                0x55, 0xAA
+  Packet Length:       ?
+  Function:            0x01 # tele command
+  Count:               1
+  Reserved:            0
+  Data (Hex):          "0x03, 0x00"  # pre-programmed sequence       
+  CRC32:               ?
