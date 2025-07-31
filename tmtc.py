@@ -2,7 +2,7 @@
 import time
 import argparse
 import serial  # Import serial for the standalone function
-from abf_pkt import *
+from abf_pkt2 import *
 from tm2 import *
 import struct
 

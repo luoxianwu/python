@@ -1,0 +1,85 @@
+@staticmethod
+    def from_file(file_path: str):
+        """
+        Reads an ABF packet from a text file.
+
+        Args:
+            file_path: Path to the text file.
+
+        Returns:
+            ABF_Packet: The ABF packet read from the file.
+        """
+        with open(file_path, "r") as f:
+            lines = f.readlines()
+
+        file_dict = {}
+        data = None
+        crc = None
+
+        for line in lines:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if ":" in line:  # Ensure there's a key-value pair
+                key, value_with_comment = line.split(":", 1)
+                key = key.lower().replace(" ", "_")
+                value = value_with_comment.split("#")[0].strip()  # Split by '#' and take the part before, then strip whitespace
+                file_dict[key] = value
+
+        # Handle data (hex)
+        print(f"data_(hex): {file_dict.get('data_(hex)')}")
+        if "data_(hex)" in file_dict and file_dict["data_(hex)"] != "":  # Check if key exists and is not empty
+            try:
+                data = bytes.fromhex(file_dict["data_(hex)"].replace("0x", "").replace(",", "").strip()) # Clean up data string
+            except ValueError as e:
+                raise ValueError(f"Invalid hex data in input file: {e}")
+        else:
+            data = b""  # set default value
+
+        # Construct header
+        header = ABF_Packet_Header()
+        try:
+            sync_str = file_dict.get("sync", "").replace("0x", "").replace(",", "").strip()
+            if len(sync_str) == 4:
+                sync_bytes = bytes.fromhex(sync_str)
+                header.pkt_sync = (sync_bytes[0], sync_bytes[1])
+            else:
+                raise ValueError("Invalid 'sync' format in input file.")
+
+            packet_length_str = file_dict.get("packet_length", "").strip()
+            if packet_length_str == "?":
+                header.packet_length = ctypes.sizeof(ABF_Packet_Header) - 4 + len(data) + 4  # Calculate packet_length here
+            elif packet_length_str:
+                header.packet_length = int(packet_length_str)
+            else:
+                raise ValueError("Missing or invalid 'packet_length' in input file.")
+
+            function_str = file_dict.get("function", "").split("#")[0].replace("0x", "").strip() # Handle comment for function
+            if function_str:
+                header.function = int(function_str, 16)
+            else:
+                raise ValueError("Missing or invalid 'function' in input file.")
+
+            count_str = file_dict.get("count", "").strip()
+            if count_str:
+                header.count = int(count_str)
+            else:
+                raise ValueError("Missing or invalid 'count' in input file.")
+
+            reserved_str = file_dict.get("reserved", "").replace("0x", "").strip()
+            header.reserved = int(reserved_str, 16) if reserved_str else 0
+
+        except KeyError as e:
+            raise ValueError(f"Missing key in input file: {e}")
+        except ValueError as e:
+            raise ValueError(f"Invalid value in input file: {e}")
+
+        packet = ABF_Packet(header, data)
+
+        # append CRC
+        if crc is None:
+            packet.crc32 = packet.calculate_crc()
+        else:
+            packet.crc32 = crc
+
+        return packet

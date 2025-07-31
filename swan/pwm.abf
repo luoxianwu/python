@@ -1,0 +1,13 @@
+ABF_Packet:
+  Sync:                0x55, 0xAA
+  Packet Length:       ?
+  Function:            0x01 # tele command
+  Reserved:            0
+  Data (Hex):          "0x2200, 0x0010,     #address, length
+                        0x0e66, 0x0005,     #90%, 5 pulse
+                        0x07ff, 0x000d,     #50%, 8 pulse 
+                        0x0333, 0x0010,     #20%, 3 pulse
+                        0x00000008          #start PWM
+                       "       
+  CRC32:               ?
+  

@@ -4,5 +4,5 @@ ABF_Packet:
   Function:            0x01 # tele command
   Count:               1
   Reserved:            0
-  Data (Hex):          "0x03, 0x01"  # pre-programmed sequence, shut down sequence       
+  Data (Hex):          0x03, 0x01  # pre-programmed sequence, shut down sequence       
   CRC32:               ?
