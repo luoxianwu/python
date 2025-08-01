@@ -1,0 +1,16 @@
+abf_packet:
+  sync: [0x55, 0xAA]
+  packet_length: ~
+  function: 0x01         # tele command
+  reserved: 0
+  data:
+    - 0x2200            # address
+    - 0x0010            # length
+    - 0x0e66            # 90%
+    - 0x0005            # 5 pulse
+    - 0x07ff            # 50%
+    - 0x000d            # 8 pulse
+    - 0x0333            # 20%
+    - 0x0010            # 3 pulse
+    - 0x00000008        # start PWM
+  crc32: ~

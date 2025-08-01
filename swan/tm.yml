@@ -1,0 +1,7 @@
+abf_packet:
+  sync: [0x55, 0xAA]
+  packet_length: ~
+  function: 0x02           # telemetry
+  reserved: 0
+  data: []                 # Representing an empty data payload as an empty list
+  crc32: ~

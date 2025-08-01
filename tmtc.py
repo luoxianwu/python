@@ -1,133 +1,118 @@
-
 import time
 import argparse
-import serial  # Import serial for the standalone function
-from abf_pkt2 import *
-from tm2 import *
+import serial
 import struct
+import sys
+import os
+import importlib
 
+# Note: This line assumes your packet parsing file is named abf_pkt2.py
+# If you rename it to abf_pkt.py, you should change this line as well.
+from abf_pkt2 import ABF_Packet
+import yaml # Import the yaml library for parsing YAML files
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="ABF Packet Sender/Receiver")
     parser.add_argument("com_port", help="COM port to use (e.g., COM12)")
-    parser.add_argument("file", help="Specify a ABF packet file")
+    parser.add_argument("file", help="Specify an ABF packet file (e.g., .\\swan\\tm.abf or .\\swan\\pwm.yml)")
     return parser.parse_args()
 
+def get_parser_module_name_from_file_path(file_path):
+    """
+    Derives the parser module name (e.g., 'swan.tm_parse') from a given
+    data file path (e.g., '.\swan\tm.abf').
+    """
+    normalized_path = os.path.normpath(file_path)
+    module_dir = os.path.dirname(normalized_path)
+    parser_module_base_name = "tm_parse"
+    path_components = [part for part in module_dir.split(os.sep) if part and part != '.']
+    
+    if path_components:
+        return ".".join(path_components) + "." + parser_module_base_name
+    else:
+        return parser_module_base_name
 
 if __name__ == "__main__":
-
     args = parse_arguments()
     print(args)
     print(type(args))
 
-    packet = ABF_Packet.from_file(args.file)
-    print(packet)
+    parser_module_name = get_parser_module_name_from_file_path(args.file)
+    print(f"Attempting to import parser module: {parser_module_name}")
 
-    # Serialize to bytes
-    packet_bytes = packet.to_bytes()
-    print(f"Serialized Packet (Hex): {' '.join(f'{b:02X}' for b in packet_bytes)}")  
+    try:
+        # Dynamically import the module containing the Telemetry class
+        dynamic_parser_module = importlib.import_module(parser_module_name)
+        
+        # Get only the Telemetry class from the dynamically loaded module
+        Telemetry = getattr(dynamic_parser_module, "Telemetry")
 
-    # PC is not real time, need adjust timeout value in practice
-    with serial.Serial(port=args.com_port, baudrate=115200, timeout=1.5) as ser: #if did not receive char in 100ms, then break out
-        bytes_written = ser.write(packet_bytes)  # Send a test string
-        #response = ser.read(1024)  # Read response
+        print(f"Successfully loaded ABF_Packet from abf_pkt.py")
+        print(f"Successfully loaded Telemetry from {parser_module_name}")
 
-        print(f"Send {bytes_written} bytes")
+    except ImportError as e:
+        print(f"Error: Could not import the module '{parser_module_name}'.")
+        print(f"Please ensure 'tm_parse.py' exists in '{os.path.dirname(os.path.normpath(args.file))}'")
+        print(f"and that all parent directories contain an empty '__init__.py' file.")
+        print(f"Details: {e}")
+        sys.exit(1)
+    except AttributeError as e:
+        print(f"Error: The module '{parser_module_name}' is missing the 'Telemetry' class.")
+        print(f"Details: {e}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"An unexpected error occurred during module loading: {e}")
+        sys.exit(1)
 
-        #expect response
-        rec_packet_info = ABF_Packet.get_packet( ser )
-
-        # Process the results
-        if rec_packet_info["state"] == ABF_Packet.STATE_VALID:
-            print("Packet received successfully!")
-            print(f"Packet data: {rec_packet_info['rec_packet'].hex()}")
-            # You would then decode packet_bytes according to the ABF specification
+    try:
+        # --- NEW LOGIC: Check file extension to choose parser ---
+        print(f"Parsing '{args.file}'...")
+        file_extension = os.path.splitext(args.file)[1].lower()
+        if file_extension in ['.yml', '.yaml']:
+            packet = ABF_Packet.from_yaml_file(args.file)
         else:
-            print("Error receiving packet.")
-            print(f"Final state: {rec_packet_info['state']}")
-            print(f"Bytes received: {rec_packet_info['bytes_received']}")
-            print(f"Packet length: {rec_packet_info['packet_length']}")
-            print(f"Packet data: {rec_packet_info['rec_packet'].hex()}")
+            packet = ABF_Packet.from_file(args.file)
+        
+        print(packet)
 
-        if rec_packet_info["state"] == ABF_Packet.STATE_VALID:
-          
-            ret_abf = ABF_Packet.from_bytes(rec_packet_info['rec_packet']) 
+        packet_bytes = packet.to_bytes()
+        print(f"Serialized Packet (Hex): {' '.join(f'{b:02X}' for b in packet_bytes)}")
+
+        with serial.Serial(port=args.com_port, baudrate=115200, timeout=1.5) as ser:
+            bytes_written = ser.write(packet_bytes)
+            print(f"Send {bytes_written} bytes")
+
+            rec_packet_info = ABF_Packet.get_packet(ser)
+
+            if rec_packet_info["state"] == ABF_Packet.STATE_VALID:
+                print("Packet received successfully!")
+                print(f"Packet data: {rec_packet_info['rec_packet'].hex()}")
+                
+                ret_abf = ABF_Packet.from_bytes(rec_packet_info['rec_packet']) 
+                print(ret_abf)
+                packet_bytes_response = ret_abf.to_bytes()
+                print(f"Serialized Response Packet (Hex): {' '.join(f'{b:02X}' for b in packet_bytes_response)}") 
+                
+                if len(ret_abf.data) != 0: 
+                    telemetry = Telemetry()
+                    result = telemetry.parse(ret_abf.data)
+                    print("\n--- Telemetry Data ---")
+            else:
+                print("Error receiving packet.")
+                print(f"Final state: {rec_packet_info['state']}")
+                print(f"Bytes received: {rec_packet_info['bytes_received']}")
+                print(f"Packet length: {rec_packet_info['packet_length']}")
+                print(f"Packet data: {rec_packet_info['rec_packet'].hex()}")
+                if rec_packet_info['bytes_received'] == 0:
+                    print("No response")
             
-            print(ret_abf)
-            # Serialize to bytes
-            packet_bytes = ret_abf.to_bytes()
-            print(f"Serialized Packet (Hex): {' '.join(f'{b:02X}' for b in packet_bytes)}") 
-            ''' for import tm.py
-            Telemetry.parse(ret_abf)'
-            '''
-            if len(ret_abf.data) != 0: 
-              #for import tm2.py
-              telemetry = Telemetry()
-              result = telemetry.parse(ret_abf.data)
-        else:
-            if rec_packet_info['bytes_received'] == 0:
-                print("No response")
-            
-
-
-r"""
-PS C:\Users\x-luo\python> python tmtc.py COM18 tlm1.abf
-Namespace(com_port='COM18', file='tlm1.abf')
-<class 'argparse.Namespace'>
-data_(hex): ""
-ABF_Packet:
-ABF_Packet_Header:
-  Sync:                 0x55 0xAA
-  Packet Length:        8
-  Function:             0x02
-  Count:                1
-  Reserved:             0x0000
-  Data (Hex):
-  CRC32:         0xF65A8172
-Serialized Packet (Hex): 55 AA 08 00 02 01 00 00 72 81 5A F6
-Send 12 bytes
-
-Receive Packet...
-55 AA 24 00 02
-Function: 0x02
-01 Count: 0x01
-00 00 Reserved: 0x0000
-00 00 78 56 34 12 33 44 32 00 AA BB 9D 05 0B 04 BB 03 AE 03 96 03 E0 03 38 0A 03 08 Data (Hex): 00 00 78 56 34 12 33 44 32 00 AA BB 9D 05 0B 04 BB 03 AE 03 96 03 E0 03
-94 30 55 06 Received 40 bytes.
-Packet CRC valid
-Packet received successfully!
-Packet data: 55aa24000201000000007856341233443200aabb9d050b04bb03ae039603e003380a030894305506
-Received CRC: 0x06553094
-ABF_Packet:
-ABF_Packet_Header:
-  Sync:                 0x55 0xAA
-  Packet Length:        36
-  Function:             0x02
-  Count:                1
-  Reserved:             0x0000
-  Data (Hex):    00 00 78 56 34 12 33 44 32 00 AA BB 9D 05 0B 04 BB 03 AE 03 96 03 E0 03 38 0A 03 08
-  CRC32:         0x06553094
-Serialized Packet (Hex): 55 AA 24 00 02 01 00 00 00 00 78 56 34 12 33 44 32 00 AA BB 9D 05 0B 04 BB 03 AE 03 96 03 E0 03 38 0A 03 08 94 30 55 06
-HEALTH data length: 12 bytes
-TLM_1 data length: 28 bytes
-Input data length: 28 bytes
-Expected TLM_1 size: 28 bytes
-Software Version Major: 0
-Software Version Minor: 0
-Up Time: 305419896 s
-Reset Count: 51
-Board Temperature: 68 °C
-Cumulative Error Count: 50
-Latest Error Code: 0xAA
-Telemetry Command Count: 187
-Channel_0: 0x059D          28V voltage: 9.826V
-Channel_1: 0x040B          28V current: 7.077A
-Channel_2: 0x03BB          5V voltage: 1.166V
-Channel_3: 0x03AE          5V current: 1.150A
-Channel_4: 0x0396          -5V voltage: -1.121V
-Channel_5: 0x03E0          -5V current: -1.211A
-Channel_6: 0x0A38          board temperature: 20.44°C
-Channel_7: 0x0803          board VCC: 3.306V
-PS C:\Users\x-luo\python>
-
-"""
+    except serial.SerialException as e:
+        print(f"Serial port error: {e}")
+        print(f"Please ensure '{args.com_port}' is available and not in use by another application.")
+        sys.exit(1)
+    except yaml.YAMLError as e:
+        print(f"YAML parsing error: {e}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"An error occurred during packet processing: {e}")
+        sys.exit(1)

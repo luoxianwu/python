@@ -1,0 +1,7 @@
+ABF_Packet:
+  Sync:                0x55, 0xAA
+  Packet Length:       ?
+  Function:            0x02 # telemetry
+  Reserved:            0
+  Data (Hex):          ""      
+  CRC32:               ?
