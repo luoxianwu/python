@@ -6,6 +6,9 @@ import os
 from typing import Dict, ByteString
 import time
 import yaml
+import binascii
+import re
+
 
 class ABF_Packet_Header(ctypes.Structure):
     _pack_ = 1
@@ -162,46 +165,7 @@ class ABF_Packet:
                 file_bytes = f.read()
             return ABF_Packet.from_bytes(file_bytes)
 
-    @staticmethod
-    def from_yaml_file(file_path: str):
-        """
-        Parses a standard YAML file into an ABF_Packet object.
-        Fills in '~' (null) values for packet_length and crc32.
-        """
-        print(f"DEBUG: Now parsing YAML file: {file_path}") # <--- ADD THIS LINE
-        with open(file_path, "r") as f:
-            yaml_data = yaml.safe_load(f)
-
-        if yaml_data is None:
-            raise ValueError(f"YAML file '{file_path}' is empty or invalid.")
-
-        packet_data = yaml_data.get("abf_packet", {})
-        
-        print(f"DEBUG: packet_data type: {type(packet_data)}")
-        print(f"DEBUG: packet_data value: {packet_data}")
-
-        # Convert YAML list of hex integers into a single bytes object
-        data_bytes = b''
-        yaml_data_list = packet_data.get("data", [])
-        for val in yaml_data_list:
-            if val > 0xFFFF: # Assume 4 bytes for values > 65535
-                data_bytes += val.to_bytes(4, byteorder='little')
-            else: # Assume 2 bytes for smaller values
-                data_bytes += val.to_bytes(2, byteorder='little')
-
-        # Create the packet
-        function_code = packet_data.get("function", 0)
-        reserved_value = packet_data.get("reserved", 0)
-        packet = ABF_Packet(function_code, reserved_value, data_bytes)
-        
-        # Fill in 'packet_length' and 'crc32' if they are null
-        if packet_data.get("packet_length") is not None:
-            packet.header.packet_length = packet_data["packet_length"]
-        if packet_data.get("crc32") is not None:
-            packet.crc32 = packet_data["crc32"]
-        
-        return packet
-
+    
     @staticmethod
     def get_packet(ser) -> Dict[str, any]:
         rec_packet = bytearray()

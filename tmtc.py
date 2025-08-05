@@ -5,6 +5,8 @@ import struct
 import sys
 import os
 import importlib
+import binascii
+from yaml_to_abf import from_yaml_file
 
 # Note: This line assumes your packet parsing file is named abf_pkt2.py
 # If you rename it to abf_pkt.py, you should change this line as well.
@@ -69,7 +71,7 @@ if __name__ == "__main__":
         print(f"Parsing '{args.file}'...")
         file_extension = os.path.splitext(args.file)[1].lower()
         if file_extension in ['.yml', '.yaml']:
-            packet = ABF_Packet.from_yaml_file(args.file)
+            packet = from_yaml_file(args.file)
         else:
             packet = ABF_Packet.from_file(args.file)
         

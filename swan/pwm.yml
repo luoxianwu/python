@@ -5,7 +5,7 @@ abf_packet:
   reserved: 0
   data:
     - 0x2200            # address
-    - 0x0010            # length
+    - 0x0004            # length
     - 0x0e66            # 90%
     - 0x0005            # 5 pulse
     - 0x07ff            # 50%
