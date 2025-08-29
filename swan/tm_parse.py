@@ -9,17 +9,15 @@ ADC_MAX = 4095      # 12-bit ADC
 VREF = 3.3          # Reference voltage
 TEMP_SCALE = 128.0  # Temperature scaling factor
 
-
 class Telemetry:
     HEALTH_STRUCT_FORMAT = "<BBbBIBBHHH"  # Little-endian, 16 bytes
 
-    # Health field names, print formats, and optional processing functions
     HEALTH_FIELD_INFO = [
         ("sw_ver_main", "Software Version Major: {}", None),
         ("sw_ver_minor", "Software Version Minor: {}", None),
         ("board_temp", "Board Temperature: {:.1f} °C", lambda temp: temp),
         ("board_vcc", "Board VCC: {:.1f} V", lambda vcc: vcc / 255 * VREF * 2),
-        ("up_time", "Up Time: {} s", None),
+        ("up_time", "Up Time: {} ms", None), 
         ("reset_count", "Reset Count: {}", None),
         ("latest_error_code", "Latest Error Code: {}", lambda err: f"0x{err:02X}"),
         ("cumulative_error_count", "Cumulative Error Count: {}", None),
@@ -27,7 +25,6 @@ class Telemetry:
         ("telemetry_count", "Telemetry Count: {}", None),
     ]
 
-    # ADC channel definitions (as before)
     ADC_CHANNELS = {
         0: ("board temperature", 15.0, 30.0, "{:.1f}°C", lambda value: value / TEMP_SCALE),
         1: ("board VCC", 3.00, 3.80, "{:.1f}V", lambda value: value / ADC_MAX * VREF * 2),
@@ -65,22 +62,40 @@ class Telemetry:
 
         if print_output:
             print("Health Data:")
-        for i, (name, print_fmt, process_func) in enumerate(self.HEALTH_FIELD_INFO):
-            raw_value = unpacked_health[i]
-            processed_value = process_func(raw_value) if process_func else raw_value
-            result["health"][name] = processed_value
-            if print_output:
-                print(print_fmt.format(processed_value))
+            
+            # --- MODIFIED: Align the health data output ---
+            # Find the length of the longest key string for alignment by splitting on '{'
+            max_key_len = max(len(info[1].split('{')[0]) for info in self.HEALTH_FIELD_INFO)
+            
+            for i, (name, print_fmt, process_func) in enumerate(self.HEALTH_FIELD_INFO):
+                raw_value = unpacked_health[i]
+                processed_value = process_func(raw_value) if process_func else raw_value
+                result["health"][name] = processed_value
+                
+                # Split the format string to get the key and the format specifier
+                key, fmt_spec = print_fmt.split("{", 1)
+                
+                # Re-add the opening brace to the format specifier
+                full_fmt = "{" + fmt_spec
+                
+                # Print the aligned key and the formatted value
+                print(f"{key:<{max_key_len}}{full_fmt.format(processed_value)}")
+            # --- END OF MODIFICATION ---
 
         if print_output:
             print("\nADC Channel Values:")
 
-        # Simplified loop to print raw hex data for all channels
         for i, raw_value in enumerate(unpacked_adc):
-            print(f"Channel_{i}: 0x{raw_value:04X}")
+            if i % 8 == 0:
+                print(f"{f'ADC{i}:':<8}", end="")
             
-            # The following logic is kept to populate the `result` dictionary,
-            # even though the printout is simplified.
+            print(f" 0x{raw_value:04X}", end="")
+            
+            if (i + 1) % 8 == 0:
+                print()
+        if (i + 1) % 8 != 0:
+            print()
+            
             if i in self.ADC_CHANNELS:
                 name, low, high, fmt, conversion_func = self.ADC_CHANNELS[i]
                 converted_value = conversion_func(raw_value)
