@@ -4,16 +4,8 @@ abf_packet:
   function: 0x01         # tele command
   reserved: 0
   data:
-    - 0x2200            # address
+    - 0x2340            # address
     - 0x0028            # how many registers to write
-    #0
-    - 0x0e66            # 90%
-    - 0x0005            # 5 pulse
-    - 0x07ff            # 50%
-    - 0x000d            # 8 pulse
-    - 0x0333            # 20%
-    - 0x0010            # 3 pulse
-    - 0x00000008        # start PWM
     #1
     - 0x0e66            # 90%
     - 0x0005            # 5 pulse
@@ -47,19 +39,19 @@ abf_packet:
     - 0x0010            # 3 pulse
     - 0x00000008        # start PWM
     #5
-    - 0x0fff            # 50%
+    - 0x0e66            # 90%
     - 0x0005            # 5 pulse
-    - 0x0199            # 10%
+    - 0x07ff            # 50%
     - 0x000d            # 8 pulse
-    - 0x0cd             # 5%
+    - 0x0333            # 20%
     - 0x0010            # 3 pulse
     - 0x00000008        # start PWM
     #6
-    - 0x07ff            # 50%
+    - 0x0e66            # 90%
     - 0x0005            # 5 pulse
-    - 0x0199            # 10%
+    - 0x07ff            # 50%
     - 0x000d            # 8 pulse
-    - 0x00cd            # 5%
+    - 0x0333            # 20%
     - 0x0010            # 3 pulse
     - 0x00000008        # start PWM
     #7
@@ -79,6 +71,14 @@ abf_packet:
     - 0x0010            # 3 pulse
     - 0x00000008        # start PWM
     #9
+    - 0x0e66            # 90%
+    - 0x0005            # 5 pulse
+    - 0x07ff            # 50%
+    - 0x000d            # 8 pulse
+    - 0x0333            # 20%
+    - 0x0010            # 3 pulse
+    - 0x00000008        # start PWM
+    #10
     - 0x0e66            # 90%
     - 0x0005            # 5 pulse
     - 0x07ff            # 50%

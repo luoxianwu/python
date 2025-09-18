@@ -1,3 +1,4 @@
+# main.py
 import time
 import argparse
 import serial
@@ -7,6 +8,7 @@ import os
 import importlib
 import binascii
 from yaml_to_abf import from_yaml_file
+from mem_parse import parse_memory_data
 
 # Note: This line assumes your packet parsing file is named abf_pkt2.py
 # If you rename it to abf_pkt.py, you should change this line as well.
@@ -96,9 +98,18 @@ if __name__ == "__main__":
                 print(f"Serialized Response Packet (Hex): {' '.join(f'{b:02X}' for b in packet_bytes_response)}") 
                 
                 if len(ret_abf.data) != 0: 
-                    telemetry = Telemetry()
-                    result = telemetry.parse(ret_abf.data)
-                    print("\n--- Telemetry Data ---")
+                    # --- MODIFIED LOGIC: Check function code
+                    if ret_abf.header.function == 0x05:
+                        print("\n--- Memory Peek Data ---")
+                        try:
+                            result = parse_memory_data(ret_abf.data)
+                        except ValueError as e:
+                            print(f"Error parsing memory data: {e}")
+                    else:                            
+                        print("\n--- Telemetry Data ---")
+                        telemetry = Telemetry()
+                        result = telemetry.parse(ret_abf.data)
+                        print(result)
             else:
                 print("Error receiving packet.")
                 print(f"Final state: {rec_packet_info['state']}")
