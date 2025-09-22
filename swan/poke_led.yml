@@ -1,0 +1,10 @@
+abf_packet:
+  sync: [0x55, 0xAA]
+  packet_length: ~
+  function: 0x06        # poke command
+  reserved: 0
+  data:
+    - 0x40012018        # address
+    - 0x01              # size
+    - 0x00000004        # poke data
+  crc32: ~

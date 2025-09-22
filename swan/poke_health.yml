@@ -4,8 +4,12 @@ abf_packet:
   function: 0x06        # poke command
   reserved: 0
   data:
-    - 0x0000335c        # address
+    - 0x00008002        # address
     - 0x02              # size
-    - 0x05              # poke data
-    - 0x0b
+    - 0xcc              # poke data
+    - 0xdd
+    - 0x00008000        # address
+    - 0x02              # size
+    - 0xAA              # poke data
+    - 0xbb    
   crc32: ~

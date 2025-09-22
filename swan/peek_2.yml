@@ -1,0 +1,11 @@
+abf_packet:
+  sync: [0x55, 0xAA]
+  packet_length: ~
+  function: 0x05        # peek command
+  reserved: 0
+  data:
+    - 0x4001000c        # fpga ver address
+    - 0x02              # size
+    - 0x40010010        # fw ver address
+    - 0x03              # size
+  crc32: ~

@@ -4,6 +4,6 @@ abf_packet:
   function: 0x05        # peek command
   reserved: 0
   data:
-    - 0x0000335c        # address
+    - 0x00008000        # address
     - 0x10              # size
   crc32: ~
